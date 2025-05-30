@@ -2,7 +2,7 @@
 name = "rkik"
 version = "0.2.0"
 edition = "2024"
-
+description = "Rusty Klock Inspection Kit - NTP Query and Compare Tool"
 [dependencies]
 rsntp = "4.0.0"
 clap = { version = "4.5", features = ["derive"] }
