@@ -1,5 +1,6 @@
 # RKIK - Rusty Klock Inspection Kit
 ![CI](https://github.com/aguacero7/rkik/actions/workflows/ci-test-n-build.yml/badge.svg)
+<br>
 **RKIK** is a command-line tool for querying NTP servers and comparing clock offsets, written in Rust.
 
 It allows you to:
