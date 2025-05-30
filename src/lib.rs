@@ -6,7 +6,18 @@ use std::net::{IpAddr, ToSocketAddrs};
 
 #[derive(Parser, Debug)]
 #[command(name = "rkik")]
-#[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")]
+#[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")
+long_about = Some(
+        "Query and compare NTP servers from the CLI.\n\
+         \n\
+         Examples:\n\
+           rkik 0.pool.ntp.org\n\
+           rkik --server time.google.com --verbose\n\
+           rkik --compare ntp1 ntp2 --format json\n\
+         \n\
+         Supports both IPv4 and IPv6, positional or flagged arguments."
+    )]
+
 pub struct Args {
     /// Query a single NTP server
     #[arg(short, long)]
