@@ -25,6 +25,16 @@ It allows you to:
 
 ## 🛠 Installation
 
+### Linux
+```bash
+# Download rkik-linux-x86_64.tar.gz on https://github.com/aguacero7/rkik/releases/latest
+tar xvfz rkik-linux-x86_64.tar.gz 
+cd rkik-linux-x86_64/
+sudo mv ./rkik /usr/local/bin
+```
+
+
+### From Source : 
 ```bash
 git clone <repository-url>
 cd rkik
