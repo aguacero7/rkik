@@ -1,8 +1,8 @@
 use assert_cmd::Command;
-use predicates::str::{contains, is_match};
-use std::net::IpAddr;
-use rkik::{resolve_ip};
 use predicates::prelude::*;
+use predicates::str::{contains, is_match};
+use rkik::resolve_ip;
+use std::net::IpAddr;
 
 #[test]
 fn test_resolve_ip_v4() {

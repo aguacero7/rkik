@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
-use console::{style, Term};
+use console::{Term, style};
 use rsntp::{ReferenceIdentifier, SntpClient};
 use std::net::{IpAddr, ToSocketAddrs};
 
@@ -84,19 +84,61 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
                     ref_id
                 );
             } else {
-                term.write_line(&format!("{} {}", style("Server:").cyan().bold(), style(server).green())).unwrap();
-                term.write_line(&format!("{} {}", style("IP:").cyan().bold(), style(ip).green())).unwrap();
-                term.write_line(&format!("{} {}", style("UTC Time:").cyan().bold(), style(datetime_utc.to_rfc2822()).green())).unwrap();
-                term.write_line(&format!("{} {}", style("Local Time:").cyan().bold(), style(local_time.format("%Y-%m-%d %H:%M:%S")).green())).unwrap();
-                term.write_line(&format!("{} {:.3} ms", style("Clock Offset:").cyan().bold(), offset_ms)).unwrap();
-                term.write_line(&format!("{} {:.3} ms", style("Round Trip Delay:").cyan().bold(), rtt_ms)).unwrap();
+                term.write_line(&format!(
+                    "{} {}",
+                    style("Server:").cyan().bold(),
+                    style(server).green()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {}",
+                    style("IP:").cyan().bold(),
+                    style(ip).green()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {}",
+                    style("UTC Time:").cyan().bold(),
+                    style(datetime_utc.to_rfc2822()).green()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {}",
+                    style("Local Time:").cyan().bold(),
+                    style(local_time.format("%Y-%m-%d %H:%M:%S")).green()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {:.3} ms",
+                    style("Clock Offset:").cyan().bold(),
+                    offset_ms
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {:.3} ms",
+                    style("Round Trip Delay:").cyan().bold(),
+                    rtt_ms
+                ))
+                .unwrap();
                 if args.verbose {
-                    term.write_line(&format!("{} {}", style("Stratum:").cyan().bold(), result.stratum())).unwrap();
-                    term.write_line(&format!("{} {}", style("Reference ID:").cyan().bold(), ref_id)).unwrap();
+                    term.write_line(&format!(
+                        "{} {}",
+                        style("Stratum:").cyan().bold(),
+                        result.stratum()
+                    ))
+                    .unwrap();
+                    term.write_line(&format!(
+                        "{} {}",
+                        style("Reference ID:").cyan().bold(),
+                        ref_id
+                    ))
+                    .unwrap();
                 }
             }
         }
-        Err(e) => term.write_line(&format!("Error querying server '{}': {}", server, e)).unwrap(),
+        Err(e) => term
+            .write_line(&format!("Error querying server '{}': {}", server, e))
+            .unwrap(),
     }
 }
 
@@ -125,20 +167,49 @@ pub fn compare_servers(server1: &str, server2: &str, term: &Term, args: &Args) {
                         \"offset2_ms\": {:.3}, \
                         \"difference_ms\": {:.3}\
                     }}",
-                    server1, ip1, offset1,
-                    server2, ip2, offset2,
-                    diff
+                    server1, ip1, offset1, server2, ip2, offset2, diff
                 );
             } else {
-                term.write_line(&format!("{} {} and {}", style("Comparing").bold(), style(server1).yellow(), style(server2).yellow())).unwrap();
-                term.write_line(&format!("{} [{}]: {:.3} ms", style(server1).green(), ip1, offset1)).unwrap();
-                term.write_line(&format!("{} [{}]: {:.3} ms", style(server2).green(), ip2, offset2)).unwrap();
-                term.write_line(&format!("{} {:.3} ms", style("Difference:").cyan().bold(), diff)).unwrap();
+                term.write_line(&format!(
+                    "{} {} and {}",
+                    style("Comparing").bold(),
+                    style(server1).yellow(),
+                    style(server2).yellow()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} [{}]: {:.3} ms",
+                    style(server1).green(),
+                    ip1,
+                    offset1
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} [{}]: {:.3} ms",
+                    style(server2).green(),
+                    ip2,
+                    offset2
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {:.3} ms",
+                    style("Difference:").cyan().bold(),
+                    diff
+                ))
+                .unwrap();
             }
         }
-        (Err(e1), Err(e2)) => term.write_line(&format!(
-            "Error querying '{}': {}\nError querying '{}': {}", server1, e1, server2, e2)).unwrap(),
-        (Err(e), _) => term.write_line(&format!("Error querying '{}': {}", server1, e)).unwrap(),
-        (_, Err(e)) => term.write_line(&format!("Error querying '{}': {}", server2, e)).unwrap(),
+        (Err(e1), Err(e2)) => term
+            .write_line(&format!(
+                "Error querying '{}': {}\nError querying '{}': {}",
+                server1, e1, server2, e2
+            ))
+            .unwrap(),
+        (Err(e), _) => term
+            .write_line(&format!("Error querying '{}': {}", server1, e))
+            .unwrap(),
+        (_, Err(e)) => term
+            .write_line(&format!("Error querying '{}': {}", server2, e))
+            .unwrap(),
     }
 }
