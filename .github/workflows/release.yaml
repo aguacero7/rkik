@@ -1,0 +1,36 @@
+name: Release Build
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-release:
+    name: Build & Upload Binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build binary
+        run: cargo build --release
+
+      - name: Archive binary
+        run: |
+          mkdir -p dist
+          cp target/release/rkik dist/
+          tar -czvf rkik-linux-x86_64.tar.gz -C dist rkik
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: rkik-linux-x86_64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
