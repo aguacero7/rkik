@@ -17,7 +17,6 @@ use std::net::{IpAddr, ToSocketAddrs};
          \n\
          Supports both IPv4 and IPv6, positional or flagged arguments."
     ))]
-
 pub struct Args {
     /// Query a single NTP server
     #[arg(short, long)]
@@ -40,7 +39,7 @@ pub struct Args {
     pub ipv6: bool,
 
     /// Positional server name or IP (used if --server not provided)
-    #[arg()]
+    #[arg(index = 1)]
     pub positional: Option<String>,
 }
 
