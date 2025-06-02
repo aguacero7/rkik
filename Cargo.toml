@@ -1,8 +1,17 @@
 [package]
 name = "rkik"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Rusty Klock Inspection Kit - NTP Query and Compare Tool"
+authors = ["Aguacero7 <liliantopbeau@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/aguacero7/rkik"
+homepage = "https://github.com/aguacero7/rkik"
+readme = "README.md"
+keywords = ["ntp", "cli", "time", "network", "tool"]
+categories = ["command-line-utilities", "network-programming"]
+documentation = "https://docs.rs/rkik"
+
 [dependencies]
 rsntp = "4.0.0"
 clap = { version = "4.5", features = ["derive"] }
@@ -13,3 +22,19 @@ serde_json = "1.0.140"
 [dev-dependencies]
 assert_cmd = "2.0"
 predicates = "3.0"
+
+[package.metadata.deb]
+maintainer = "Aguacero7 <liliantopbeau@gmail.com>"
+depends = "libc6 (>= 2.29)"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/rkik", "usr/bin/", "755"]
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/rkik", dest = "/usr/bin/rkik", mode = "755" }
+]
+license = "MIT"
+summary = "Rusty Klock Inspection Kit"
