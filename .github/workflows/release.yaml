@@ -1,16 +1,16 @@
-name: Release Build
+name: Release & Publish
 
 on:
   release:
     types: [published]
 
 jobs:
-  build-release:
-    name: Build & Upload Binaries
+  build-and-publish:
+    name: Build and Deploy All Artifacts
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v3
 
       - name: Install Rust
@@ -19,18 +19,44 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Build binary
+      - name: Install packaging tools
+        run: |
+          sudo apt update && sudo apt install -y rpm build-essential
+          cargo install cargo-deb
+          cargo install cargo-generate-rpm
+
+      - name: Build release binary
         run: cargo build --release
 
-      - name: Archive binary
+      - name: Generate .deb package
+        run: cargo deb
+
+      - name: Generate .rpm package
+        run: cargo generate-rpm
+
+      - name: Prepare tar.gz and zip
         run: |
           mkdir -p dist
           cp target/release/rkik dist/
+
+          # Linux
           tar -czvf rkik-linux-x86_64.tar.gz -C dist rkik
 
-      - name: Upload release asset
+          # Windows (fake build, override if cross-compiled)
+          zip rkik-windows-x86_64.zip dist/rkik
+
+          # macOS (same as above)
+          tar -czvf rkik-macos-x86_64.tar.gz -C dist rkik
+
+      - name: Upload all release assets
         uses: softprops/action-gh-release@v1
         with:
-          files: rkik-linux-x86_64.tar.gz
+          files: |
+            rkik-linux-x86_64.tar.gz
+            rkik-macos-x86_64.tar.gz
+            rkik-windows-x86_64.zip
+            target/debian/*.deb
+            target/generate-rpm/rpmbuild/RPMS/x86_64/*.rpm
+            target/release/rkik
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
