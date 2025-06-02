@@ -24,6 +24,8 @@ jobs:
           sudo apt update && sudo apt install -y rpm build-essential
           cargo install cargo-deb
           cargo install cargo-generate-rpm
+          cargo install cross --locked
+          
 
       - name: Build release binary
         run: cargo build --release
@@ -34,29 +36,38 @@ jobs:
       - name: Generate .rpm package
         run: cargo generate-rpm
 
-      - name: Prepare tar.gz and zip
+      - name: Build Linux x86_64 # Build native linux
+        run: cross build --release --target x86_64-unknown-linux-gnu
+
+      - name: Build Windows x86_64 # windows cross compilation
+        run: cross build --release --target x86_64-pc-windows-gnu
+
+      - name: Build macOS x86_64 # macos cross compilation
+        run: cross build --release --target x86_64-apple-darwin
+
+      - name: Prepare Archives
         run: |
           mkdir -p dist
-          cp target/release/rkik dist/
+          
+          cp target/x86_64-unknown-linux-gnu/release/rkik dist/rkik-linux-x86_64
+          cp target/x86_64-pc-windows-gnu/release/rkik.exe dist/rkik-windows-x86_64.exe
+          cp target/x86_64-apple-darwin/release/rkik dist/rkik-macos-x86_64
+          
+          tar -czvf rkik-linux-x86_64.tar.gz -C dist rkik-linux-x86_64
+          zip rkik-windows-x86_64.zip dist/rkik-windows-x86_64.exe
+          tar -czvf rkik-macos-x86_64.tar.gz -C dist rkik-macos-x86_64
 
-          # Linux
-          tar -czvf rkik-linux-x86_64.tar.gz -C dist rkik
-
-          # Windows (fake build, override if cross-compiled)
-          zip rkik-windows-x86_64.zip dist/rkik
-
-          # macOS (same as above)
-          tar -czvf rkik-macos-x86_64.tar.gz -C dist rkik
-
-      - name: Upload all release assets
+      - name: Upload release assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
             rkik-linux-x86_64.tar.gz
             rkik-macos-x86_64.tar.gz
             rkik-windows-x86_64.zip
+            dist/rkik-linux-x86_64
+            dist/rkik-windows-x86_64.exe
+            dist/rkik-macos-x86_64
             target/debian/*.deb
             target/generate-rpm/*.rpm
-            target/release/rkik
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
