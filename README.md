@@ -85,3 +85,7 @@ Round Trip Delay: 2.320 ms
 ```
 
 ---
+
+## Documentation
+
+See the [docs](docs/README.md) directory for the full user and developer guides.
