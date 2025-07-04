@@ -10,6 +10,8 @@ It allows you to:
 - Use positional or flagged arguments (`--server`, or directly passing the hostname/IP)
 - Enable verbose output for advanced details (stratum, reference ID)
 
+**Link to  [Documentation page](https://aguacero7.github.io/rkik/)**
+
 ---
 
 ## 🚀 Features
