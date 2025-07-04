@@ -44,5 +44,11 @@ cargo test
 
 ## CI/CD
 
-GitHub Actions runs tests on each push. Packaging scripts for `.deb` and `.rpm` are defined in `Cargo.toml`.
+The workflow named `ci-test-n-build.yml` runs tests, lints, formats code and checks on dependencies on each push. All of that on 3 different OS using 
+matrix.
+
+There is another workflow `release.yaml` which is meant to build packages, binaries and artifacts and upload them to the 
+release page.
+
+Packaging scripts for `.deb` and `.rpm` are defined in `Cargo.toml`.
 
