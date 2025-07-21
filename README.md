@@ -34,6 +34,24 @@ tar xvfz rkik-linux-x86_64.tar.gz
 cd rkik-linux-x86_64/
 sudo mv ./rkik /usr/local/bin
 ```
+### Red-hat Like Systems (CentOS, Fedora, RHEL, Alma,..)
+```bash
+# Download rkik-<X.Y.Z-R>.x86_64.rpm  on https://github.com/aguacero7/rkik/releases/latest
+rpm -U <rkik-<X.Y.Z-R>.x86_64.rpm>
+# OR
+dnf install <rkik-<X.Y.Z-R>.x86_64.rpm>
+# OR
+yum install <rkik-<X.Y.Z-R>.x86_64.rpm>
+```
+### Debian-like Systems
+```bash
+# Download rkik-<X.Y.Z-R>.x86_64.deb  on https://github.com/aguacero7/rkik/releases/latest
+apt install <rkik-<X.Y.Z-R>.x86_64.rpm>
+```
+### Cargo
+```bash
+cargo install rkik
+```
 
 
 ### From Source : 
