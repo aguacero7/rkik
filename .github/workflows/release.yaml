@@ -68,4 +68,4 @@ jobs:
           
       - name: Publish to crates.io
         if: github.event.release.prerelease == false
-        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
