@@ -15,7 +15,7 @@ RKIK is a Rust command-line application. The main logic lives in `src/lib.rs`, w
 ```
 src/
   main.rs  - CLI entry point
-  lib.rs   - Core functions: resolve_ip, query_server, compare_servers
+  lib.rs   - Core functions
 ```
 
 Unit and CLI tests are in the `tests/` directory.
