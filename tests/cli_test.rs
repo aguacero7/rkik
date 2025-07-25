@@ -1,7 +1,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 use predicates::str::{contains, is_match};
-use rkik::resolve_ip;
+use rkik::resolve_ip_for_mode;
 use std::net::IpAddr;
 
 #[test]
