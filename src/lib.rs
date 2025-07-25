@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
-use console::{style, Term};
-use rsntp::{Config, ReferenceIdentifier, SntpClient,SynchronizationResult, SynchronizationError};
+use console::{Term, style};
+use rsntp::{Config, ReferenceIdentifier, SntpClient, SynchronizationError, SynchronizationResult};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::process;
 
@@ -45,12 +45,17 @@ pub struct Args {
 }
 pub fn resolve_ip_for_mode(host: &str, ipv6_only: bool) -> Result<IpAddr, String> {
     let port = 123;
-    let addrs: Vec<SocketAddr> = (host, port).to_socket_addrs()
+    let addrs: Vec<SocketAddr> = (host, port)
+        .to_socket_addrs()
         .map_err(|e| format!("DNS resolution failed for '{}': {}", host, e))?
         .collect();
 
     let filtered: Vec<IpAddr> = if ipv6_only {
-        addrs.iter().map(|a| a.ip()).filter(|ip| ip.is_ipv6()).collect()
+        addrs
+            .iter()
+            .map(|a| a.ip())
+            .filter(|ip| ip.is_ipv6())
+            .collect()
     } else {
         // enforce IPv4 first, then IPv6
         // This ensures that if both IPv4 and IPv6 addresses are available,
@@ -87,8 +92,10 @@ fn client_for_mode(ipv6: bool) -> SntpClient {
     }
 }
 
-
-pub fn synchronize_with_ip(client: &SntpClient, ip: IpAddr) -> Result<SynchronizationResult, SynchronizationError> {
+pub fn synchronize_with_ip(
+    client: &SntpClient,
+    ip: IpAddr,
+) -> Result<SynchronizationResult, SynchronizationError> {
     let addr = SocketAddr::new(ip, 123);
     client.synchronize(addr.to_string())
 }
@@ -101,7 +108,8 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
     let ip = match resolve_ip_for_mode(server, args.ipv6) {
         Ok(ip) => ip,
         Err(e) => {
-            term.write_line(&style(format!("Error: {}", e)).red().to_string()).unwrap();
+            term.write_line(&style(format!("Error: {}", e)).red().to_string())
+                .unwrap();
             process::exit(1);
         }
     };
@@ -141,15 +149,56 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
                     ref_id
                 );
             } else {
-                term.write_line(&format!("{} {}", style("Server:").cyan().bold(), style(server).green())).unwrap();
-                term.write_line(&format!("{} {} ({})", style("IP:").cyan().bold(), style(ip).green(), ip_version)).unwrap();
-                term.write_line(&format!("{} {}", style("UTC Time:").cyan().bold(), style(datetime_utc.to_rfc2822()).green())).unwrap();
-                term.write_line(&format!("{} {}", style("Local Time:").cyan().bold(), style(local_time.format("%Y-%m-%d %H:%M:%S")).green())).unwrap();
-                term.write_line(&format!("{} {:.3} ms", style("Clock Offset:").cyan().bold(), offset_ms)).unwrap();
-                term.write_line(&format!("{} {:.3} ms", style("Round Trip Delay:").cyan().bold(), rtt_ms)).unwrap();
+                term.write_line(&format!(
+                    "{} {}",
+                    style("Server:").cyan().bold(),
+                    style(server).green()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {} ({})",
+                    style("IP:").cyan().bold(),
+                    style(ip).green(),
+                    ip_version
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {}",
+                    style("UTC Time:").cyan().bold(),
+                    style(datetime_utc.to_rfc2822()).green()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {}",
+                    style("Local Time:").cyan().bold(),
+                    style(local_time.format("%Y-%m-%d %H:%M:%S")).green()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {:.3} ms",
+                    style("Clock Offset:").cyan().bold(),
+                    offset_ms
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {:.3} ms",
+                    style("Round Trip Delay:").cyan().bold(),
+                    rtt_ms
+                ))
+                .unwrap();
                 if args.verbose {
-                    term.write_line(&format!("{} {}", style("Stratum:").cyan().bold(), result.stratum())).unwrap();
-                    term.write_line(&format!("{} {}", style("Reference ID:").cyan().bold(), ref_id)).unwrap();
+                    term.write_line(&format!(
+                        "{} {}",
+                        style("Stratum:").cyan().bold(),
+                        result.stratum()
+                    ))
+                    .unwrap();
+                    term.write_line(&format!(
+                        "{} {}",
+                        style("Reference ID:").cyan().bold(),
+                        ref_id
+                    ))
+                    .unwrap();
                 }
             }
         }
@@ -163,14 +212,16 @@ pub fn compare_servers(server1: &str, server2: &str, term: &Term, args: &Args) {
     let ip1 = match resolve_ip_for_mode(server1, args.ipv6) {
         Ok(ip) => ip,
         Err(e) => {
-            term.write_line(&style(format!("Error: {}", e)).red().to_string()).unwrap();
+            term.write_line(&style(format!("Error: {}", e)).red().to_string())
+                .unwrap();
             process::exit(1);
         }
     };
     let ip2 = match resolve_ip_for_mode(server2, args.ipv6) {
         Ok(ip) => ip,
         Err(e) => {
-            term.write_line(&style(format!("Error: {}", e)).red().to_string()).unwrap();
+            term.write_line(&style(format!("Error: {}", e)).red().to_string())
+                .unwrap();
             process::exit(1);
         }
     };
@@ -200,15 +251,38 @@ pub fn compare_servers(server1: &str, server2: &str, term: &Term, args: &Args) {
                         \"offset2_ms\": {:.3}, \
                         \"difference_ms\": {:.3}\
                     }}",
-                    server1, ip1, ip_version1, offset1,
-                    server2, ip2, ip_version2, offset2,
-                    diff
+                    server1, ip1, ip_version1, offset1, server2, ip2, ip_version2, offset2, diff
                 );
             } else {
-                term.write_line(&format!("{} {} and {}", style("Comparing").bold(), style(server1).yellow(), style(server2).yellow())).unwrap();
-                term.write_line(&format!("{} [{} {}]: {:.3} ms", style(server1).green(), ip1, ip_version1, offset1)).unwrap();
-                term.write_line(&format!("{} [{} {}]: {:.3} ms", style(server2).green(), ip2, ip_version2, offset2)).unwrap();
-                term.write_line(&format!("{} {:.3} ms", style("Difference:").cyan().bold(), diff)).unwrap();
+                term.write_line(&format!(
+                    "{} {} and {}",
+                    style("Comparing").bold(),
+                    style(server1).yellow(),
+                    style(server2).yellow()
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} [{} {}]: {:.3} ms",
+                    style(server1).green(),
+                    ip1,
+                    ip_version1,
+                    offset1
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} [{} {}]: {:.3} ms",
+                    style(server2).green(),
+                    ip2,
+                    ip_version2,
+                    offset2
+                ))
+                .unwrap();
+                term.write_line(&format!(
+                    "{} {:.3} ms",
+                    style("Difference:").cyan().bold(),
+                    diff
+                ))
+                .unwrap();
             }
         }
         (Err(e1), Err(e2)) => term

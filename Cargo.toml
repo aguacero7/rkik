@@ -8,7 +8,7 @@ license = "MIT"
 repository = "https://github.com/aguacero7/rkik"
 homepage = "https://github.com/aguacero7/rkik"
 readme = "README.md"
-keywords = ["ntp", "cli", "time", "network", "tool"]
+keywords = ["ntp", "cli", "time", "network", "tool","troubleshooting"]
 categories = ["command-line-utilities", "network-programming"]
 documentation = "https://docs.rs/rkik"
 
