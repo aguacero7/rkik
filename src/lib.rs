@@ -24,11 +24,11 @@ pub struct Args {
     pub server: Option<String>,
 
     /// Compare two servers
-    #[arg(long, num_args = 2)]
+    #[arg(short='C',long, num_args = 2)]
     pub compare: Option<Vec<String>>,
 
     /// Show detailed output
-    #[arg(short, long)]
+    #[arg(short='v', long)]
     pub verbose: bool,
 
     /// Output format: "text" or "json"
@@ -36,7 +36,7 @@ pub struct Args {
     pub format: String,
 
     /// Use IPv6 resolution only
-    #[arg(long)]
+    #[arg(short='6',long)]
     pub ipv6: bool,
 
     /// Positional server name or IP (used if --server not provided)
