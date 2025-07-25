@@ -17,7 +17,7 @@ fn main() {
         (_, None, Some(pos)) => query_server(pos, &term, &args),
         _ => {
             term.write_line(
-                &style("Error: Provide either a server, a positional argument, or --compare")
+                &style("Error: Provide either a server, a positional argument, or --compare, -h to show help.")
                     .red()
                     .bold()
                     .to_string(),
