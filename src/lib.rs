@@ -52,7 +52,20 @@ pub fn resolve_ip_for_mode(host: &str, ipv6_only: bool) -> Result<IpAddr, String
     let filtered: Vec<IpAddr> = if ipv6_only {
         addrs.iter().map(|a| a.ip()).filter(|ip| ip.is_ipv6()).collect()
     } else {
-        addrs.iter().map(|a| a.ip()).collect()
+        // enforce IPv4 first, then IPv6
+        // This ensures that if both IPv4 and IPv6 addresses are available,
+        // the IPv4 address is preferred.
+        let mut v4 = vec![];
+        let mut v6 = vec![];
+        for a in addrs {
+            let ip = a.ip();
+            if ip.is_ipv4() {
+                v4.push(ip);
+            } else {
+                v6.push(ip);
+            }
+        }
+        v4.into_iter().chain(v6).collect()
     };
 
     filtered.into_iter().next().ok_or_else(|| {
