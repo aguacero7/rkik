@@ -12,6 +12,10 @@ keywords = ["ntp", "cli", "time", "network", "tool"]
 categories = ["command-line-utilities", "network-programming"]
 documentation = "https://docs.rs/rkik"
 
+[features]
+default=[]
+network-tests = []
+
 [dependencies]
 rsntp = "4.0.0"
 clap = { version = "4.5", features = ["derive"] }
