@@ -69,7 +69,8 @@ fn client_for_mode(ipv6: bool) -> SntpClient {
         let config = Config::default().bind_address((Ipv6Addr::UNSPECIFIED, 0).into());
         SntpClient::with_config(config)
     } else {
-        SntpClient::new()
+        let config = Config::default().bind_address(([0, 0, 0, 0], 0).into()); // 0.0.0.0:0
+        SntpClient::with_config(config)
     }
 }
 
