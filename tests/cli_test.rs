@@ -1,3 +1,8 @@
+use assert_cmd::Command;
+use predicates::prelude::*;
+use predicates::str::{contains, is_match};
+use rkik::resolve_ip_for_mode;
+use std::net::IpAddr;
 #[test]
 fn test_resolve_ip_v4_priority() {
     let ip = resolve_ip_for_mode("1.pool.ntp.org", false).expect("Should resolve");
