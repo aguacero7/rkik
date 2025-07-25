@@ -1,16 +1,9 @@
 # RKIK - Rusty Klock Inspection Kit
 ![Build & Tests](https://github.com/aguacero7/rkik/actions/workflows/ci-test-n-build.yml/badge.svg)
 <br>
-**RKIK** is a command-line tool for querying NTP servers and comparing clock offsets, written in Rust.
+Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But what if you just want to **inspect** the current offset between your system clock and one or more NTP servers — without root, without sync, and without installing anything heavyweight?
 
-You definitely don't want to run a daemon to simply query a NTP server, that's why `rkik` exists.
-
-It allows you to:
-- Query a single NTP server
-- Compare two NTP servers
-- Display human-readable or JSON output
-- Use positional or flagged arguments (`--server`, or directly passing the hostname/IP)
-- Enable verbose output for advanced details (stratum, reference ID)
+**RKIK** is a Rust-based CLI tool designed for **stateless and passive NTP inspection**, just as `dig` or `ping` are for DNS and ICMP.
 
 **Link to  [Documentation page](https://aguacero7.github.io/rkik/)**
 
@@ -18,12 +11,12 @@ It allows you to:
 
 ## Features
 
-- ✅ Query any NTP server (IPv4 or IPv6)
-- ✅ Compare offsets between two servers
-- ✅ Output formats: human-readable or JSON
-- ✅ Verbose mode for advanced metadata
-- ✅ Accepts both FQDN and raw IP addresses
-- ✅ Argument parsing via `clap` with fallback positional support
+- Query any NTP server (IPv4 or IPv6)
+-  Compare offsets between two servers
+-  Output formats: human-readable or JSON
+-  Verbose mode for advanced metadata
+-  Accepts both FQDN and raw IP addresses
+-  Argument parsing via `clap` with fallback positional support
 
 ---
 
