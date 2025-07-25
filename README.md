@@ -2,6 +2,7 @@
 ![Build & Tests](https://github.com/aguacero7/rkik/actions/workflows/ci-test-n-build.yml/badge.svg)
 <br>
 **RKIK** is a command-line tool for querying NTP servers and comparing clock offsets, written in Rust.
+
 You definitely don't want to run a daemon to simply query a NTP server, that's why `rkik` exists.
 
 It allows you to:
