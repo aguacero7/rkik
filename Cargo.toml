@@ -1,6 +1,6 @@
 [package]
 name = "rkik"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 description = "Rusty Klock Inspection Kit - NTP Query and Compare Tool"
 authors = ["Aguacero7 <naps@teamnaps.fr>"]
@@ -8,9 +8,13 @@ license = "MIT"
 repository = "https://github.com/aguacero7/rkik"
 homepage = "https://github.com/aguacero7/rkik"
 readme = "README.md"
-keywords = ["ntp", "cli", "time", "network", "tool"]
+keywords = ["ntp", "cli", "time", "network", "tool","troubleshooting"]
 categories = ["command-line-utilities", "network-programming"]
 documentation = "https://docs.rs/rkik"
+
+[features]
+default=[]
+network-tests = []
 
 [dependencies]
 rsntp = "4.0.0"
