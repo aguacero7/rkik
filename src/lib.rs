@@ -1,8 +1,8 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
 use console::{style, Term};
-use rsntp::{Config, ReferenceIdentifier, SntpClient};
-use std::net::{IpAddr, Ipv6Addr, ToSocketAddrs};
+use rsntp::{Config, ReferenceIdentifier, SntpClient,SynchronizationResult, SynchronizationError};
+use std::net::{IpAddr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::process;
 
 #[derive(Parser, Debug)]
@@ -43,28 +43,25 @@ pub struct Args {
     #[arg(index = 1)]
     pub positional: Option<String>,
 }
-
 pub fn resolve_ip_for_mode(host: &str, ipv6_only: bool) -> Result<IpAddr, String> {
     let port = 123;
-    let addrs = (host, port).to_socket_addrs()
-        .map_err(|e| format!("DNS resolution failed for '{}': {}", host, e))?;
+    let addrs: Vec<SocketAddr> = (host, port).to_socket_addrs()
+        .map_err(|e| format!("DNS resolution failed for '{}': {}", host, e))?
+        .collect();
 
-    let filtered = if ipv6_only {
-        addrs.filter(|a| a.ip().is_ipv6())
+    let filtered: Vec<IpAddr> = if ipv6_only {
+        addrs.iter().map(|a| a.ip()).filter(|ip| ip.is_ipv6()).collect()
     } else {
-        addrs
+        addrs.iter().map(|a| a.ip()).collect()
     };
 
-    filtered
-        .map(|a| a.ip())
-        .next()
-        .ok_or_else(|| {
-            if ipv6_only {
-                format!("No IPv6 address found for '{}'", host)
-            } else {
-                format!("No IP address found for '{}'", host)
-            }
-        })
+    filtered.into_iter().next().ok_or_else(|| {
+        if ipv6_only {
+            format!("No IPv6 address found for '{}'", host)
+        } else {
+            format!("No IP address found for '{}'", host)
+        }
+    })
 }
 
 fn client_for_mode(ipv6: bool) -> SntpClient {
@@ -74,6 +71,12 @@ fn client_for_mode(ipv6: bool) -> SntpClient {
     } else {
         SntpClient::new()
     }
+}
+
+
+pub fn synchronize_with_ip(client: &SntpClient, ip: IpAddr) -> Result<SynchronizationResult, SynchronizationError> {
+    let addr = SocketAddr::new(ip, 123);
+    client.synchronize(addr.to_string())
 }
 
 fn format_reference_id(reference_id: &ReferenceIdentifier) -> String {
@@ -91,7 +94,7 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
 
     let client = client_for_mode(args.ipv6);
 
-    match client.synchronize(ip.to_string()) {
+    match synchronize_with_ip(&client, ip) {
         Ok(result) => {
             let datetime_utc: DateTime<Utc> = result.datetime().try_into().unwrap();
             let local_time: DateTime<Local> = DateTime::from(datetime_utc);
@@ -159,8 +162,8 @@ pub fn compare_servers(server1: &str, server2: &str, term: &Term, args: &Args) {
     };
 
     let client = client_for_mode(args.ipv6);
-    let result1 = client.synchronize(ip1.to_string());
-    let result2 = client.synchronize(ip2.to_string());
+    let result1 = synchronize_with_ip(&client, ip1);
+    let result2 = synchronize_with_ip(&client, ip2);
 
     match (result1, result2) {
         (Ok(r1), Ok(r2)) => {

@@ -66,3 +66,12 @@ fn test_invalid_input() {
         .failure()
         .stdout(contains("Error: Provide either a server"));
 }
+
+#[test]
+fn test_cli_ipv6() {
+    let mut cmd = Command::cargo_bin("rkik").unwrap();
+    cmd.args(["--server", "time.cloudflare.com", "--ipv6", "--format", "text"])
+        .assert()
+        .success()
+        .stdout(contains("IP:").and(contains("v6")));
+}
