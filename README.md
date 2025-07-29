@@ -65,11 +65,12 @@ rkik --help
 | Command                                          | Description                                |
 |--------------------------------------------------|--------------------------------------------|
 | `rkik pool.ntp.org`                              | Query an NTP server (positional)           |
+| `rkik pool.ntp.org -6`                              | Query an NTP server using IPv6 (positional)           |
 | `rkik --server pool.ntp.org`                     | Same as above, explicit flag               |
 | `rkik --server time.google.com --verbose`        | Verbose query output                       |
 | `rkik --server time.cloudflare.com --format json`| JSON output for a single server            |
 | `rkik --compare pool.ntp.org time.google.com`    | Compare two servers                        |
-| `rkik --compare ntp1 ntp2 --format json`         | Compare servers with JSON output           |
+| `rkik -C ntp1 ntp2 --format json`         | Compare servers with JSON output           |
 
 ---
 
