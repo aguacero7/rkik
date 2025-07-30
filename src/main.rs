@@ -5,13 +5,14 @@ use std::process;
 
 use rkik::{Args, compare_servers, query_server};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
     let term = Term::stdout();
 
     match (&args.compare, &args.server, &args.positional) {
-        (Some(servers), _, _) if servers.len() == 2 => {
-            compare_servers(&servers[0], &servers[1], &term, &args)
+        (Some(servers), _, _) if servers.len() >= 2 => {
+            compare_servers(&servers, &term, &args).await;
         }
         (_, Some(server), _) => query_server(server, &term, &args),
         (_, None, Some(pos)) => query_server(pos, &term, &args),
@@ -22,8 +23,9 @@ fn main() {
                     .bold()
                     .to_string(),
             )
-            .unwrap();
+                .unwrap();
             process::exit(1);
         }
     }
 }
+
