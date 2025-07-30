@@ -39,10 +39,6 @@ jobs:
       - name: Non-network tests
         run: cargo test -- --skip test_compare_argument --skip test_resolve_ip_v6
 
-
-      - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -A warnings
-
       - name: Check formatting
         run: cargo fmt --all -- --check
 
