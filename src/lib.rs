@@ -1,10 +1,13 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
 use console::{Term, style};
-use rsntp::{Config, ReferenceIdentifier, SntpClient, SynchronizationError, SynchronizationResult,AsyncSntpClient};
+use futures::future::join_all;
+use rsntp::{
+    AsyncSntpClient, Config, ReferenceIdentifier, SntpClient, SynchronizationError,
+    SynchronizationResult,
+};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::process;
-use futures::future::join_all;
 
 #[derive(Parser, Debug)]
 #[command(name = "rkik")]
@@ -29,7 +32,7 @@ pub struct Args {
     pub compare: Option<Vec<String>>,
 
     /// Show detailed output
-    #[arg(short='v', long)]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
 
     /// Output format: "text" or "json"
@@ -37,7 +40,7 @@ pub struct Args {
     pub format: String,
 
     /// Use IPv6 resolution only
-    #[arg(short='6',long)]
+    #[arg(short = '6', long)]
     pub ipv6: bool,
 
     /// Positional server name or IP (used if --server not provided)
@@ -211,26 +214,43 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
 
 pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
     if servers.len() < 2 {
-        term.write_line(&style("Need at least 2 servers to compare").red().to_string()).unwrap();
+        term.write_line(
+            &style("Need at least 2 servers to compare")
+                .red()
+                .to_string(),
+        )
+        .unwrap();
         return;
     }
 
-    let resolved: Vec<_> = servers.iter()
+    let resolved: Vec<_> = servers
+        .iter()
         .map(|s| (s.clone(), resolve_ip_for_mode(s, args.ipv6)))
         .collect();
 
-    let valid: Vec<_> = resolved.iter()
+    let valid: Vec<_> = resolved
+        .iter()
         .filter_map(|(name, ip)| match ip {
             Ok(addr) => Some((name.clone(), *addr)),
             Err(e) => {
-                term.write_line(&style(format!("Could not resolve {}: {}", name, e)).red().to_string()).ok();
+                term.write_line(
+                    &style(format!("Could not resolve {}: {}", name, e))
+                        .red()
+                        .to_string(),
+                )
+                .ok();
                 None
             }
         })
         .collect();
 
     if valid.len() < 2 {
-        term.write_line(&style("Not enough valid servers to compare.").red().to_string()).unwrap();
+        term.write_line(
+            &style("Not enough valid servers to compare.")
+                .red()
+                .to_string(),
+        )
+        .unwrap();
         return;
     }
 
@@ -243,7 +263,8 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
         AsyncSntpClient::with_config(config)
     };
 
-    let futures = valid.iter()
+    let futures = valid
+        .iter()
         .map(|(_, ip)| client.synchronize(SocketAddr::new(*ip, 123).to_string()))
         .collect::<Vec<_>>();
 
@@ -258,13 +279,23 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
                 final_results.push((name.clone(), *ip, offset));
             }
             Err(e) => {
-                term.write_line(&style(format!("Failed to query {}: {}", name, e)).red().to_string()).ok();
+                term.write_line(
+                    &style(format!("Failed to query {}: {}", name, e))
+                        .red()
+                        .to_string(),
+                )
+                .ok();
             }
         }
     }
 
     if final_results.len() < 2 {
-        term.write_line(&style("At least two successful responses required to compare.").red().to_string()).unwrap();
+        term.write_line(
+            &style("At least two successful responses required to compare.")
+                .red()
+                .to_string(),
+        )
+        .unwrap();
         return;
     }
 
@@ -285,7 +316,8 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
             "{} {} servers",
             style("Comparing (async):").bold(),
             final_results.len()
-        )).unwrap();
+        ))
+        .unwrap();
 
         for (name, ip, offset) in final_results.iter() {
             let ip_version = if ip.is_ipv6() { "v6" } else { "v4" };
@@ -295,12 +327,20 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
                 ip,
                 ip_version,
                 offset
-            )).unwrap();
+            ))
+            .unwrap();
         }
 
-        let min = final_results.iter().map(|(_, _, o)| *o).fold(f64::INFINITY, f64::min);
-        let max = final_results.iter().map(|(_, _, o)| *o).fold(f64::NEG_INFINITY, f64::max);
-        let avg = final_results.iter().map(|(_, _, o)| *o).sum::<f64>() / final_results.len() as f64;
+        let min = final_results
+            .iter()
+            .map(|(_, _, o)| *o)
+            .fold(f64::INFINITY, f64::min);
+        let max = final_results
+            .iter()
+            .map(|(_, _, o)| *o)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let avg =
+            final_results.iter().map(|(_, _, o)| *o).sum::<f64>() / final_results.len() as f64;
         let diff = max - min;
 
         term.write_line(&format!(
@@ -310,6 +350,7 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
             min,
             max,
             avg
-        )).unwrap();
+        ))
+        .unwrap();
     }
 }
