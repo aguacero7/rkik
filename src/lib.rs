@@ -1,7 +1,11 @@
 use chrono::{DateTime, Local, Utc};
 use clap::Parser;
 use console::{Term, style};
-use rsntp::{Config, ReferenceIdentifier, SntpClient, SynchronizationError, SynchronizationResult};
+use futures::future::join_all;
+use rsntp::{
+    AsyncSntpClient, Config, ReferenceIdentifier, SntpClient, SynchronizationError,
+    SynchronizationResult,
+};
 use std::net::{IpAddr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::process;
 
@@ -24,11 +28,11 @@ pub struct Args {
     pub server: Option<String>,
 
     /// Compare two servers
-    #[arg(short='C',long, num_args = 2)]
+    #[arg(short='C',long, num_args = 2..10)]
     pub compare: Option<Vec<String>>,
 
     /// Show detailed output
-    #[arg(short='v', long)]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
 
     /// Output format: "text" or "json"
@@ -36,7 +40,7 @@ pub struct Args {
     pub format: String,
 
     /// Use IPv6 resolution only
-    #[arg(short='6',long)]
+    #[arg(short = '6', long)]
     pub ipv6: bool,
 
     /// Positional server name or IP (used if --server not provided)
@@ -208,94 +212,145 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
     }
 }
 
-pub fn compare_servers(server1: &str, server2: &str, term: &Term, args: &Args) {
-    let ip1 = match resolve_ip_for_mode(server1, args.ipv6) {
-        Ok(ip) => ip,
-        Err(e) => {
-            term.write_line(&style(format!("Error: {}", e)).red().to_string())
-                .unwrap();
-            process::exit(1);
-        }
+pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
+    if servers.len() < 2 {
+        term.write_line(
+            &style("Need at least 2 servers to compare")
+                .red()
+                .to_string(),
+        )
+        .unwrap();
+        return;
+    }
+
+    let resolved: Vec<_> = servers
+        .iter()
+        .map(|s| (s.clone(), resolve_ip_for_mode(s, args.ipv6)))
+        .collect();
+
+    let valid: Vec<_> = resolved
+        .iter()
+        .filter_map(|(name, ip)| match ip {
+            Ok(addr) => Some((name.clone(), *addr)),
+            Err(e) => {
+                term.write_line(
+                    &style(format!("Could not resolve {}: {}", name, e))
+                        .red()
+                        .to_string(),
+                )
+                .ok();
+                None
+            }
+        })
+        .collect();
+
+    if valid.len() < 2 {
+        term.write_line(
+            &style("Not enough valid servers to compare.")
+                .red()
+                .to_string(),
+        )
+        .unwrap();
+        return;
+    }
+
+    let client = {
+        let config = if args.ipv6 {
+            Config::default().bind_address((Ipv6Addr::UNSPECIFIED, 0).into())
+        } else {
+            Config::default().bind_address(([0, 0, 0, 0], 0).into())
+        };
+        AsyncSntpClient::with_config(config)
     };
-    let ip2 = match resolve_ip_for_mode(server2, args.ipv6) {
-        Ok(ip) => ip,
-        Err(e) => {
-            term.write_line(&style(format!("Error: {}", e)).red().to_string())
-                .unwrap();
-            process::exit(1);
-        }
-    };
 
-    let client = client_for_mode(args.ipv6);
-    let result1 = synchronize_with_ip(&client, ip1);
-    let result2 = synchronize_with_ip(&client, ip2);
+    let futures = valid
+        .iter()
+        .map(|(_, ip)| client.synchronize(SocketAddr::new(*ip, 123).to_string()))
+        .collect::<Vec<_>>();
 
-    match (result1, result2) {
-        (Ok(r1), Ok(r2)) => {
-            let offset1 = r1.clock_offset().as_secs_f64() * 1000.0;
-            let offset2 = r2.clock_offset().as_secs_f64() * 1000.0;
-            let diff = (offset1 - offset2).abs();
-            let ip_version1 = if ip1.is_ipv6() { "v6" } else { "v4" };
-            let ip_version2 = if ip2.is_ipv6() { "v6" } else { "v4" };
+    let results = join_all(futures).await;
 
-            if args.format == "json" {
-                println!(
-                    "{{\
-                        \"server1\": \"{}\", \
-                        \"ip1\": \"{}\", \
-                        \"ip_version1\": \"{}\", \
-                        \"offset1_ms\": {:.3}, \
-                        \"server2\": \"{}\", \
-                        \"ip2\": \"{}\", \
-                        \"ip_version2\": \"{}\", \
-                        \"offset2_ms\": {:.3}, \
-                        \"difference_ms\": {:.3}\
-                    }}",
-                    server1, ip1, ip_version1, offset1, server2, ip2, ip_version2, offset2, diff
-                );
-            } else {
-                term.write_line(&format!(
-                    "{} {} and {}",
-                    style("Comparing").bold(),
-                    style(server1).yellow(),
-                    style(server2).yellow()
-                ))
-                .unwrap();
-                term.write_line(&format!(
-                    "{} [{} {}]: {:.3} ms",
-                    style(server1).green(),
-                    ip1,
-                    ip_version1,
-                    offset1
-                ))
-                .unwrap();
-                term.write_line(&format!(
-                    "{} [{} {}]: {:.3} ms",
-                    style(server2).green(),
-                    ip2,
-                    ip_version2,
-                    offset2
-                ))
-                .unwrap();
-                term.write_line(&format!(
-                    "{} {:.3} ms",
-                    style("Difference:").cyan().bold(),
-                    diff
-                ))
-                .unwrap();
+    let mut final_results = vec![];
+
+    for ((name, ip), res) in valid.iter().zip(results) {
+        match res {
+            Ok(r) => {
+                let offset = r.clock_offset().as_secs_f64() * 1000.0;
+                final_results.push((name.clone(), *ip, offset));
+            }
+            Err(e) => {
+                term.write_line(
+                    &style(format!("Failed to query {}: {}", name, e))
+                        .red()
+                        .to_string(),
+                )
+                .ok();
             }
         }
-        (Err(e1), Err(e2)) => term
-            .write_line(&format!(
-                "Error querying '{}': {}\nError querying '{}': {}",
-                server1, e1, server2, e2
+    }
+
+    if final_results.len() < 2 {
+        term.write_line(
+            &style("At least two successful responses required to compare.")
+                .red()
+                .to_string(),
+        )
+        .unwrap();
+        return;
+    }
+
+    if args.format == "json" {
+        println!("[");
+        for (i, (name, ip, offset)) in final_results.iter().enumerate() {
+            println!(
+                "  {{ \"server\": \"{}\", \"ip\": \"{}\", \"offset_ms\": {:.3} }}{}",
+                name,
+                ip,
+                offset,
+                if i < final_results.len() - 1 { "," } else { "" }
+            );
+        }
+        println!("]");
+    } else {
+        term.write_line(&format!(
+            "{} {} servers",
+            style("Comparing (async):").bold(),
+            final_results.len()
+        ))
+        .unwrap();
+
+        for (name, ip, offset) in final_results.iter() {
+            let ip_version = if ip.is_ipv6() { "v6" } else { "v4" };
+            term.write_line(&format!(
+                "{} [{} {}]: {:.3} ms",
+                style(name).green(),
+                ip,
+                ip_version,
+                offset
             ))
-            .unwrap(),
-        (Err(e), _) => term
-            .write_line(&format!("Error querying '{}': {}", server1, e))
-            .unwrap(),
-        (_, Err(e)) => term
-            .write_line(&format!("Error querying '{}': {}", server2, e))
-            .unwrap(),
+            .unwrap();
+        }
+
+        let min = final_results
+            .iter()
+            .map(|(_, _, o)| *o)
+            .fold(f64::INFINITY, f64::min);
+        let max = final_results
+            .iter()
+            .map(|(_, _, o)| *o)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let avg =
+            final_results.iter().map(|(_, _, o)| *o).sum::<f64>() / final_results.len() as f64;
+        let diff = max - min;
+
+        term.write_line(&format!(
+            "{} {:.3} ms (min: {:.3}, max: {:.3}, avg: {:.3})",
+            style("Max drift:").cyan().bold(),
+            diff,
+            min,
+            max,
+            avg
+        ))
+        .unwrap();
     }
 }
