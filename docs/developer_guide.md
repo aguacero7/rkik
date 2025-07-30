@@ -9,9 +9,9 @@ RKIK is a Rust command-line application to query and compare NTP servers.
 - **Main Logic**: Centralized in `src/lib.rs`, with async logic integrated for multi-server comparison.
 - **CLI Parsing**: Done with [`clap`](https://docs.rs/clap), supporting both positional and flagged arguments.
 - **NTP Client**:
-    - [`rsntp`](https://crates.io/crates/rsntp) provides both sync and async APIs.
-    - `SntpClient` is used for single-server queries (sync).
-    - `AsyncSntpClient` is used for `--compare` (async).
+  - [`rsntp`](https://crates.io/crates/rsntp) provides both sync and async APIs.
+  - `SntpClient` is used for single-server queries (sync).
+  - `AsyncSntpClient` is used for `--compare` (async).
 - **Async Runtime**: Powered by [`tokio`](https://crates.io/crates/tokio).
 - **Terminal Output**: Colored output via the `console` crate.
 
