@@ -12,7 +12,7 @@ async fn main() {
 
     match (&args.compare, &args.server, &args.positional) {
         (Some(servers), _, _) if servers.len() >= 2 => {
-            compare_servers(&servers, &term, &args).await;
+            compare_servers(servers, &term, &args).await;
         }
         (_, Some(server), _) => query_server(server, &term, &args),
         (_, None, Some(pos)) => query_server(pos, &term, &args),
