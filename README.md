@@ -1,7 +1,7 @@
 # RKIK - Rusty Klock Inspection Kit
 ![Build & Tests](https://github.com/aguacero7/rkik/actions/workflows/ci-test-n-build.yml/badge.svg)
 <br>
-Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But what if you just want to **inspect** the current offset between your system clock and one or more NTP servers — without root, without sync, and without installing anything heavyweight?
+Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But what if you just want to **inspect** the current offset between your system clock and one or more NTP servers — without root, without sync, and without installing anything heavy?
 
 **RKIK** is a Rust-based CLI tool designed for **stateless and passive NTP inspection**, just as `dig` or `ping` are for DNS and ICMP.
 
