@@ -11,7 +11,14 @@ readme = "README.md"
 keywords = ["ntp", "cli", "time", "network", "tool"]
 categories = ["command-line-utilities", "network-programming"]
 documentation = "https://docs.rs/rkik"
-
+include = [ #for CI to not publish artifacts
+    "Cargo.toml",
+    "Cargo.lock",
+    "README.md",
+    "LICENSE*",
+    "src/**",
+    "docs/**"
+]
 [features]
 default=[]
 network-tests = []

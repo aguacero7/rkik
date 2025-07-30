@@ -25,7 +25,7 @@ jobs:
           cargo install cargo-deb
           cargo install cargo-generate-rpm
           cargo install cross --locked
-          
+
 
       - name: Build release binary
         run: cargo build --release
@@ -65,7 +65,7 @@ jobs:
             target/generate-rpm/*.rpm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Publish to crates.io
         if: github.event.release.prerelease == false
-        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
