@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local, Utc};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use console::{Term, style};
 use futures::future::join_all;
 use rsntp::{
@@ -8,6 +8,13 @@ use rsntp::{
 };
 use std::net::{IpAddr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::process;
+use serde::Serialize;
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum OutputFormat {
+    Text,
+    Json,
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "rkik")]
@@ -37,7 +44,7 @@ pub struct Args {
 
     /// Output format: "text" or "json"
     #[arg(short, long, default_value = "text")]
-    pub format: String,
+    pub format: OutputFormat,
 
     /// Use IPv6 resolution only
     #[arg(short = '6', long)]
@@ -47,6 +54,49 @@ pub struct Args {
     #[arg(index = 1)]
     pub positional: Option<String>,
 }
+
+#[derive(Debug, Serialize)]
+struct SingleServerResult {
+    server: String,
+    ip: IpAddr,
+    ip_version: String,
+    utc_time: String,
+    local_time: String,
+    offset_ms: f64,
+    rtt_ms: f64,
+    stratum: u8,
+    reference_id: String,
+}
+
+impl SingleServerResult {
+    pub fn new(server: String, ip: IpAddr, ip_version: String, utc_time: String, local_time: String, offset_ms: f64, rtt_ms: f64, ref_id: String) -> SingleServerResult {
+        SingleServerResult {
+            server,
+            ip,
+            ip_version,
+            utc_time,
+            local_time,
+            offset_ms,
+            rtt_ms,
+            stratum: 0,
+            reference_id: ref_id,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ShortServerResult {
+    name: String,
+    ip: IpAddr,
+    offset_ms: f64,
+}
+
+impl ShortServerResult {
+    pub fn new(name: String, ip: IpAddr, offset_ms: f64) -> ShortServerResult {
+        ShortServerResult { name, ip, offset_ms }
+    }
+}
+
 pub fn resolve_ip_for_mode(host: &str, ipv6_only: bool) -> Result<IpAddr, String> {
     let port = 123;
     let addrs: Vec<SocketAddr> = (host, port)
@@ -87,13 +137,12 @@ pub fn resolve_ip_for_mode(host: &str, ipv6_only: bool) -> Result<IpAddr, String
 }
 
 fn client_for_mode(ipv6: bool) -> SntpClient {
-    if ipv6 {
-        let config = Config::default().bind_address((Ipv6Addr::UNSPECIFIED, 0).into());
-        SntpClient::with_config(config)
+    let config = if ipv6 {
+        Config::default().bind_address((Ipv6Addr::UNSPECIFIED, 0).into())
     } else {
-        let config = Config::default().bind_address(([0, 0, 0, 0], 0).into()); // 0.0.0.0:0
-        SntpClient::with_config(config)
-    }
+        Config::default().bind_address(([0, 0, 0, 0], 0).into()) // 0.0.0.0:0
+    };
+    SntpClient::with_config(config)
 }
 
 pub fn synchronize_with_ip(
@@ -129,80 +178,64 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
             let ref_id = format_reference_id(result.reference_identifier());
             let ip_version = if ip.is_ipv6() { "v6" } else { "v4" };
 
-            if args.format == "json" {
-                println!(
-                    "{{\
-                        \"server\": \"{}\", \
-                        \"ip\": \"{}\", \
-                        \"ip_version\": \"{}\", \
-                        \"utc_time\": \"{}\", \
-                        \"local_time\": \"{}\", \
-                        \"offset_ms\": {:.3}, \
-                        \"rtt_ms\": {:.3}, \
-                        \"stratum\": {}, \
-                        \"reference_id\": \"{}\"\
-                    }}",
-                    server,
-                    ip,
-                    ip_version,
-                    datetime_utc.to_rfc3339(),
-                    local_time.format("%Y-%m-%d %H:%M:%S"),
-                    offset_ms,
-                    rtt_ms,
-                    result.stratum(),
-                    ref_id
-                );
-            } else {
-                term.write_line(&format!(
-                    "{} {}",
-                    style("Server:").cyan().bold(),
-                    style(server).green()
-                ))
-                .unwrap();
-                term.write_line(&format!(
-                    "{} {} ({})",
-                    style("IP:").cyan().bold(),
-                    style(ip).green(),
-                    ip_version
-                ))
-                .unwrap();
-                term.write_line(&format!(
-                    "{} {}",
-                    style("UTC Time:").cyan().bold(),
-                    style(datetime_utc.to_rfc2822()).green()
-                ))
-                .unwrap();
-                term.write_line(&format!(
-                    "{} {}",
-                    style("Local Time:").cyan().bold(),
-                    style(local_time.format("%Y-%m-%d %H:%M:%S")).green()
-                ))
-                .unwrap();
-                term.write_line(&format!(
-                    "{} {:.3} ms",
-                    style("Clock Offset:").cyan().bold(),
-                    offset_ms
-                ))
-                .unwrap();
-                term.write_line(&format!(
-                    "{} {:.3} ms",
-                    style("Round Trip Delay:").cyan().bold(),
-                    rtt_ms
-                ))
-                .unwrap();
-                if args.verbose {
+            match args.format {
+                OutputFormat::Text => {
                     term.write_line(&format!(
                         "{} {}",
-                        style("Stratum:").cyan().bold(),
-                        result.stratum()
+                        style("Server:").cyan().bold(),
+                        style(server).green()
                     ))
-                    .unwrap();
+                        .unwrap();
+                    term.write_line(&format!(
+                        "{} {} ({})",
+                        style("IP:").cyan().bold(),
+                        style(ip).green(),
+                        ip_version
+                    ))
+                        .unwrap();
                     term.write_line(&format!(
                         "{} {}",
-                        style("Reference ID:").cyan().bold(),
-                        ref_id
+                        style("UTC Time:").cyan().bold(),
+                        style(datetime_utc.to_rfc2822()).green()
                     ))
-                    .unwrap();
+                        .unwrap();
+                    term.write_line(&format!(
+                        "{} {}",
+                        style("Local Time:").cyan().bold(),
+                        style(local_time.format("%Y-%m-%d %H:%M:%S")).green()
+                    ))
+                        .unwrap();
+                    term.write_line(&format!(
+                        "{} {:.3} ms",
+                        style("Clock Offset:").cyan().bold(),
+                        offset_ms
+                    ))
+                        .unwrap();
+                    term.write_line(&format!(
+                        "{} {:.3} ms",
+                        style("Round Trip Delay:").cyan().bold(),
+                        rtt_ms
+                    ))
+                        .unwrap();
+                    if args.verbose {
+                        term.write_line(&format!(
+                            "{} {}",
+                            style("Stratum:").cyan().bold(),
+                            result.stratum()
+                        ))
+                            .unwrap();
+                        term.write_line(&format!(
+                            "{} {}",
+                            style("Reference ID:").cyan().bold(),
+                            ref_id
+                        ))
+                            .unwrap();
+                    }
+                }
+                OutputFormat::Json => {
+                    let result = SingleServerResult::new(server.to_string(), ip, ip_version.to_string(), datetime_utc.to_rfc3339(), local_time.format("%Y-%m-%d %H:%M:%S").to_string(), offset_ms, rtt_ms, ref_id);
+                    let serialized = serde_json::to_string_pretty(&result).unwrap();
+                    println!("{}", serialized);
                 }
             }
         }
@@ -299,58 +332,53 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
         return;
     }
 
-    if args.format == "json" {
-        println!("[");
-        for (i, (name, ip, offset)) in final_results.iter().enumerate() {
-            println!(
-                "  {{ \"server\": \"{}\", \"ip\": \"{}\", \"offset_ms\": {:.3} }}{}",
-                name,
-                ip,
-                offset,
-                if i < final_results.len() - 1 { "," } else { "" }
-            );
-        }
-        println!("]");
-    } else {
-        term.write_line(&format!(
-            "{} {} servers",
-            style("Comparing (async):").bold(),
-            final_results.len()
-        ))
-        .unwrap();
-
-        for (name, ip, offset) in final_results.iter() {
-            let ip_version = if ip.is_ipv6() { "v6" } else { "v4" };
+    match args.format {
+        OutputFormat::Text => {
             term.write_line(&format!(
-                "{} [{} {}]: {:.3} ms",
-                style(name).green(),
-                ip,
-                ip_version,
-                offset
+                "{} {} servers",
+                style("Comparing (async):").bold(),
+                final_results.len()
             ))
-            .unwrap();
+                .unwrap();
+
+            for (name, ip, offset) in final_results.iter() {
+                let ip_version = if ip.is_ipv6() { "v6" } else { "v4" };
+                term.write_line(&format!(
+                    "{} [{} {}]: {:.3} ms",
+                    style(name).green(),
+                    ip,
+                    ip_version,
+                    offset
+                ))
+                    .unwrap();
+            }
+
+            let min = final_results
+                .iter()
+                .map(|(_, _, o)| *o)
+                .fold(f64::INFINITY, f64::min);
+            let max = final_results
+                .iter()
+                .map(|(_, _, o)| *o)
+                .fold(f64::NEG_INFINITY, f64::max);
+            let avg =
+                final_results.iter().map(|(_, _, o)| *o).sum::<f64>() / final_results.len() as f64;
+            let diff = max - min;
+
+            term.write_line(&format!(
+                "{} {:.3} ms (min: {:.3}, max: {:.3}, avg: {:.3})",
+                style("Max drift:").cyan().bold(),
+                diff,
+                min,
+                max,
+                avg
+            ))
+                .unwrap();
         }
-
-        let min = final_results
-            .iter()
-            .map(|(_, _, o)| *o)
-            .fold(f64::INFINITY, f64::min);
-        let max = final_results
-            .iter()
-            .map(|(_, _, o)| *o)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let avg =
-            final_results.iter().map(|(_, _, o)| *o).sum::<f64>() / final_results.len() as f64;
-        let diff = max - min;
-
-        term.write_line(&format!(
-            "{} {:.3} ms (min: {:.3}, max: {:.3}, avg: {:.3})",
-            style("Max drift:").cyan().bold(),
-            diff,
-            min,
-            max,
-            avg
-        ))
-        .unwrap();
+        OutputFormat::Json => {
+            let results = final_results.into_iter().map(|value| ShortServerResult::new(value.0, value.1, value.2)).collect::<Vec<ShortServerResult>>();
+            let serialized = serde_json::to_string_pretty(&results).unwrap();
+            println!("{}", serialized);
+        }
     }
 }
