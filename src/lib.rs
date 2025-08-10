@@ -6,9 +6,9 @@ use rsntp::{
     AsyncSntpClient, Config, ReferenceIdentifier, SntpClient, SynchronizationError,
     SynchronizationResult,
 };
+use serde::Serialize;
 use std::net::{IpAddr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::process;
-use serde::Serialize;
 
 #[derive(Debug, Clone, ValueEnum)]
 pub enum OutputFormat {
@@ -69,7 +69,16 @@ struct SingleServerResult {
 }
 
 impl SingleServerResult {
-    pub fn new(server: String, ip: IpAddr, ip_version: String, utc_time: String, local_time: String, offset_ms: f64, rtt_ms: f64, ref_id: String) -> SingleServerResult {
+    pub fn new(
+        server: String,
+        ip: IpAddr,
+        ip_version: String,
+        utc_time: String,
+        local_time: String,
+        offset_ms: f64,
+        rtt_ms: f64,
+        ref_id: String,
+    ) -> SingleServerResult {
         SingleServerResult {
             server,
             ip,
@@ -93,7 +102,11 @@ struct ShortServerResult {
 
 impl ShortServerResult {
     pub fn new(name: String, ip: IpAddr, offset_ms: f64) -> ShortServerResult {
-        ShortServerResult { name, ip, offset_ms }
+        ShortServerResult {
+            name,
+            ip,
+            offset_ms,
+        }
     }
 }
 
@@ -185,55 +198,64 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
                         style("Server:").cyan().bold(),
                         style(server).green()
                     ))
-                        .unwrap();
+                    .unwrap();
                     term.write_line(&format!(
                         "{} {} ({})",
                         style("IP:").cyan().bold(),
                         style(ip).green(),
                         ip_version
                     ))
-                        .unwrap();
+                    .unwrap();
                     term.write_line(&format!(
                         "{} {}",
                         style("UTC Time:").cyan().bold(),
                         style(datetime_utc.to_rfc2822()).green()
                     ))
-                        .unwrap();
+                    .unwrap();
                     term.write_line(&format!(
                         "{} {}",
                         style("Local Time:").cyan().bold(),
                         style(local_time.format("%Y-%m-%d %H:%M:%S")).green()
                     ))
-                        .unwrap();
+                    .unwrap();
                     term.write_line(&format!(
                         "{} {:.3} ms",
                         style("Clock Offset:").cyan().bold(),
                         offset_ms
                     ))
-                        .unwrap();
+                    .unwrap();
                     term.write_line(&format!(
                         "{} {:.3} ms",
                         style("Round Trip Delay:").cyan().bold(),
                         rtt_ms
                     ))
-                        .unwrap();
+                    .unwrap();
                     if args.verbose {
                         term.write_line(&format!(
                             "{} {}",
                             style("Stratum:").cyan().bold(),
                             result.stratum()
                         ))
-                            .unwrap();
+                        .unwrap();
                         term.write_line(&format!(
                             "{} {}",
                             style("Reference ID:").cyan().bold(),
                             ref_id
                         ))
-                            .unwrap();
+                        .unwrap();
                     }
                 }
                 OutputFormat::Json => {
-                    let result = SingleServerResult::new(server.to_string(), ip, ip_version.to_string(), datetime_utc.to_rfc3339(), local_time.format("%Y-%m-%d %H:%M:%S").to_string(), offset_ms, rtt_ms, ref_id);
+                    let result = SingleServerResult::new(
+                        server.to_string(),
+                        ip,
+                        ip_version.to_string(),
+                        datetime_utc.to_rfc3339(),
+                        local_time.format("%Y-%m-%d %H:%M:%S").to_string(),
+                        offset_ms,
+                        rtt_ms,
+                        ref_id,
+                    );
                     let serialized = serde_json::to_string_pretty(&result).unwrap();
                     println!("{}", serialized);
                 }
@@ -339,7 +361,7 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
                 style("Comparing (async):").bold(),
                 final_results.len()
             ))
-                .unwrap();
+            .unwrap();
 
             for (name, ip, offset) in final_results.iter() {
                 let ip_version = if ip.is_ipv6() { "v6" } else { "v4" };
@@ -350,7 +372,7 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
                     ip_version,
                     offset
                 ))
-                    .unwrap();
+                .unwrap();
             }
 
             let min = final_results
@@ -373,10 +395,13 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
                 max,
                 avg
             ))
-                .unwrap();
+            .unwrap();
         }
         OutputFormat::Json => {
-            let results = final_results.into_iter().map(|value| ShortServerResult::new(value.0, value.1, value.2)).collect::<Vec<ShortServerResult>>();
+            let results = final_results
+                .into_iter()
+                .map(|value| ShortServerResult::new(value.0, value.1, value.2))
+                .collect::<Vec<ShortServerResult>>();
             let serialized = serde_json::to_string_pretty(&results).unwrap();
             println!("{}", serialized);
         }
