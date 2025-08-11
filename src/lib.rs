@@ -57,6 +57,10 @@ pub struct Args {
     /// Positional server name or IP (used if --server not provided)
     #[arg(index = 1)]
     pub positional: Option<String>,
+
+    /// Pretty-print JSON output
+    #[arg(long)]
+    pub pretty: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -262,7 +266,11 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
                         stratum,
                         ref_id,
                     );
-                    let serialized = serde_json::to_string_pretty(&result).unwrap();
+                    let serialized = if args.pretty {
+                        serde_json::to_string_pretty(&result).unwrap()
+                    } else {
+                        serde_json::to_string(&result).unwrap()
+                    };
                     println!("{}", serialized);
                 }
             }
@@ -408,7 +416,11 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
                 .into_iter()
                 .map(|value| ShortServerResult::new(value.0, value.1, value.2))
                 .collect::<Vec<ShortServerResult>>();
-            let serialized = serde_json::to_string_pretty(&results).unwrap();
+            let serialized = if args.pretty {
+                serde_json::to_string_pretty(&results).unwrap()
+            } else {
+                serde_json::to_string(&results).unwrap()
+            };
             println!("{}", serialized);
         }
     }
