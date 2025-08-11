@@ -3,12 +3,15 @@ use clap::Parser;
 use console::{Term, style};
 use std::process;
 
-use rkik::{Args, compare_servers, query_server};
+use rkik::{Args, compare_servers, query_server,OutputFormat};
 
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
+    let mut args = Args::parse();
     let term = Term::stdout();
+    if args.json {
+        args.format = OutputFormat::Json;
+    }
 
     match (&args.compare, &args.server, &args.positional) {
         (Some(servers), _, _) if servers.len() >= 2 => {

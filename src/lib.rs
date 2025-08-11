@@ -46,6 +46,10 @@ pub struct Args {
     #[arg(short, long, default_value = "text")]
     pub format: OutputFormat,
 
+    /// Alias for JSON Output
+    #[arg(long)]
+    pub json: bool,
+
     /// Use IPv6 resolution only
     #[arg(short = '6', long)]
     pub ipv6: bool,
