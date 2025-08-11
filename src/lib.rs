@@ -77,7 +77,7 @@ impl SingleServerResult {
         local_time: String,
         offset_ms: f64,
         rtt_ms: f64,
-        stratum : u8,
+        stratum: u8,
         ref_id: String,
     ) -> SingleServerResult {
         SingleServerResult {
