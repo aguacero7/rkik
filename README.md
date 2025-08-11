@@ -12,7 +12,7 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 ## Features
 
 - Query any NTP server (IPv4 or IPv6)
--  Compare offsets between two servers
+-  Compare offsets between X servers
 -  Output formats: human-readable or JSON
 -  Verbose mode for advanced metadata
 -  Accepts both FQDN and raw IP addresses
@@ -70,7 +70,7 @@ rkik --help
 | `rkik --server time.google.com --verbose`        | Verbose query output                       |
 | `rkik --server time.cloudflare.com --format json`| JSON output for a single server            |
 | `rkik --compare pool.ntp.org time.google.com`    | Compare two servers                        |
-| `rkik -C ntp1 ntp2 --format json`         | Compare servers with JSON output           |
+| `rkik -C ntp1 ntp2 ntp3 ntp4 --format json`         | Compare servers with JSON output           |
 
 ---
 
