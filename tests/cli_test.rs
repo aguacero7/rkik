@@ -1,5 +1,7 @@
 use assert_cmd::Command;
+use predicates::prelude::PredicateBooleanExt;
 use predicates::str::contains;
+use rkik::resolve_ip_for_mode;
 
 #[cfg(feature = "network-tests")]
 #[test]
@@ -63,7 +65,7 @@ fn test_compare_argument_json_output() {
     ])
     .assert()
     .success()
-    .stdout(contains("\"difference_ms\""));
+    .stdout(contains("\"offset_ms\""));
 }
 
 #[test]
