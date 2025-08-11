@@ -118,63 +118,6 @@ impl ShortServerResult {
         }
     }
 }
-
-#[derive(Debug, Serialize)]
-struct SingleServerResult {
-    server: String,
-    ip: IpAddr,
-    ip_version: String,
-    utc_time: String,
-    local_time: String,
-    offset_ms: f64,
-    rtt_ms: f64,
-    stratum: u8,
-    reference_id: String,
-}
-
-impl SingleServerResult {
-    pub fn new(
-        server: String,
-        ip: IpAddr,
-        ip_version: String,
-        utc_time: String,
-        local_time: String,
-        offset_ms: f64,
-        rtt_ms: f64,
-        stratum: u8,
-        ref_id: String,
-    ) -> SingleServerResult {
-        SingleServerResult {
-            server,
-            ip,
-            ip_version,
-            utc_time,
-            local_time,
-            offset_ms,
-            rtt_ms,
-            stratum,
-            reference_id: ref_id,
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-struct ShortServerResult {
-    name: String,
-    ip: IpAddr,
-    offset_ms: f64,
-}
-
-impl ShortServerResult {
-    pub fn new(name: String, ip: IpAddr, offset_ms: f64) -> ShortServerResult {
-        ShortServerResult {
-            name,
-            ip,
-            offset_ms,
-        }
-    }
-}
-
 pub fn resolve_ip_for_mode(host: &str, ipv6_only: bool) -> Result<IpAddr, String> {
     let port = 123;
     let addrs: Vec<SocketAddr> = (host, port)
