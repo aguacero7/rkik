@@ -3,13 +3,25 @@ use clap::Parser;
 use console::{Term, style};
 use std::process;
 
-use rkik::{Args, compare_servers, query_server};
+use rkik::{Args, OutputFormat, compare_servers, query_server};
 
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
+    let mut args = Args::parse();
     let term = Term::stdout();
-
+    if args.json {
+        args.format = OutputFormat::Json;
+    }
+    if args.pretty & !args.json {
+        term.write_line(
+            &style("Error: There is no pretty print for the plain text display")
+                .red()
+                .bold()
+                .to_string(),
+        )
+        .unwrap();
+        process::exit(1);
+    }
     match (&args.compare, &args.server, &args.positional) {
         (Some(servers), _, _) if servers.len() >= 2 => {
             compare_servers(servers, &term, &args).await;
