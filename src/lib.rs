@@ -77,6 +77,7 @@ impl SingleServerResult {
         local_time: String,
         offset_ms: f64,
         rtt_ms: f64,
+        stratum : u8,
         ref_id: String,
     ) -> SingleServerResult {
         SingleServerResult {
@@ -87,7 +88,7 @@ impl SingleServerResult {
             local_time,
             offset_ms,
             rtt_ms,
-            stratum: 0,
+            stratum,
             reference_id: ref_id,
         }
     }
@@ -190,7 +191,7 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
             let rtt_ms = result.round_trip_delay().as_secs_f64() * 1000.0;
             let ref_id = format_reference_id(result.reference_identifier());
             let ip_version = if ip.is_ipv6() { "v6" } else { "v4" };
-
+            let stratum = result.stratum();
             match args.format {
                 OutputFormat::Text => {
                     term.write_line(&format!(
@@ -254,6 +255,7 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
                         local_time.format("%Y-%m-%d %H:%M:%S").to_string(),
                         offset_ms,
                         rtt_ms,
+                        stratum,
                         ref_id,
                     );
                     let serialized = serde_json::to_string_pretty(&result).unwrap();
