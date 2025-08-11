@@ -46,6 +46,10 @@ pub struct Args {
     #[arg(short, long, default_value = "text")]
     pub format: OutputFormat,
 
+    /// Alias for JSON Output
+    #[arg(long)]
+    pub json: bool,
+
     /// Use IPv6 resolution only
     #[arg(short = '6', long)]
     pub ipv6: bool,
@@ -53,6 +57,66 @@ pub struct Args {
     /// Positional server name or IP (used if --server not provided)
     #[arg(index = 1)]
     pub positional: Option<String>,
+
+    /// Pretty-print JSON output
+    #[arg(long)]
+    pub pretty: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct SingleServerResult {
+    server: String,
+    ip: IpAddr,
+    ip_version: String,
+    utc_time: String,
+    local_time: String,
+    offset_ms: f64,
+    rtt_ms: f64,
+    stratum: u8,
+    reference_id: String,
+}
+
+impl SingleServerResult {
+    pub fn new(
+        server: String,
+        ip: IpAddr,
+        ip_version: String,
+        utc_time: String,
+        local_time: String,
+        offset_ms: f64,
+        rtt_ms: f64,
+        stratum: u8,
+        ref_id: String,
+    ) -> SingleServerResult {
+        SingleServerResult {
+            server,
+            ip,
+            ip_version,
+            utc_time,
+            local_time,
+            offset_ms,
+            rtt_ms,
+            stratum,
+            reference_id: ref_id,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ShortServerResult {
+    name: String,
+    ip: IpAddr,
+    offset_ms: f64,
+}
+
+impl ShortServerResult {
+    pub fn new(name: String, ip: IpAddr, offset_ms: f64) -> ShortServerResult {
+        ShortServerResult {
+            name,
+            ip,
+            offset_ms,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -258,7 +322,11 @@ pub fn query_server(server: &str, term: &Term, args: &Args) {
                         stratum,
                         ref_id,
                     );
-                    let serialized = serde_json::to_string_pretty(&result).unwrap();
+                    let serialized = if args.pretty {
+                        serde_json::to_string_pretty(&result).unwrap()
+                    } else {
+                        serde_json::to_string(&result).unwrap()
+                    };
                     println!("{}", serialized);
                 }
             }
@@ -404,7 +472,11 @@ pub async fn compare_servers(servers: &[String], term: &Term, args: &Args) {
                 .into_iter()
                 .map(|value| ShortServerResult::new(value.0, value.1, value.2))
                 .collect::<Vec<ShortServerResult>>();
-            let serialized = serde_json::to_string_pretty(&results).unwrap();
+            let serialized = if args.pretty {
+                serde_json::to_string_pretty(&results).unwrap()
+            } else {
+                serde_json::to_string(&results).unwrap()
+            };
             println!("{}", serialized);
         }
     }
