@@ -5,6 +5,9 @@ use console::{Term, set_colors_enabled, style};
 use rkik::sync::{SyncError, sync_from_probe};
 use std::process;
 use std::time::Duration;
+use atty::Stream; // ← ajouter
+#[cfg(feature = "sync")]
+use rkik::sync::{sync_from_probe, SyncError};
 
 use rkik::{ProbeResult, RkikError, compare_many, fmt, query_one};
 
@@ -98,13 +101,7 @@ async fn main() {
     let exit_code = match (&args.compare, &args.server, &args.positional) {
         (Some(list), _, _) => match compare_many(list, args.ipv6, timeout).await {
             Ok(results) => {
-                output(
-                    &term,
-                    &results,
-                    args.format.clone(),
-                    args.pretty,
-                    args.verbose,
-                );
+                output(&term, &results, args.format.clone(), args.pretty, args.verbose);
                 0
             }
             Err(e) => handle_error(&term, e),
@@ -187,8 +184,7 @@ async fn main() {
                     .red()
                     .bold()
                     .to_string(),
-            )
-            .ok();
+            ).ok();
             1
         }
     };

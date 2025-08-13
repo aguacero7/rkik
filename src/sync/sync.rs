@@ -21,7 +21,7 @@ pub fn sync_from_probe(probe: &ProbeResult) -> Result<(), SyncError> {
 
 #[cfg(unix)]
 fn step_to_utc(utc: &DateTime<Utc>) -> Result<(), SyncError> {
-    use libc::{CLOCK_REALTIME, clock_settime, timespec};
+  use libc::{CLOCK_REALTIME, clock_settime, timespec};
 
     unsafe {
         if libc::geteuid() != 0 {
