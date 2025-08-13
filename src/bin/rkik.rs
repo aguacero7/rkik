@@ -3,7 +3,7 @@ use console::{Term, set_colors_enabled, style};
 use std::process;
 use std::time::Duration;
 
-use rkik::{RkikError, compare_many, fmt, query_one};
+use rkik::{RkikError, compare_many,ProbeResult, fmt, query_one};
 
 #[derive(Debug, Clone, ValueEnum)]
 enum OutputFormat {
@@ -22,6 +22,11 @@ struct Args {
     /// Compare multiple servers
     #[arg(short = 'C', long, num_args = 2..)]
     compare: Option<Vec<String>>,
+    
+    /// Show detailed output
+    #[arg(short = 'v', long)]
+    pub verbose: bool,
+
 
     /// Output format: text or json
     #[arg(short, long, default_value = "text")]
@@ -67,21 +72,21 @@ async fn main() {
     let exit_code = match (&args.compare, &args.server, &args.positional) {
         (Some(list), _, _) => match compare_many(list, args.ipv6, timeout).await {
             Ok(results) => {
-                output(&term, &results, args.format, args.pretty);
+                output(&term, &results, args.format.clone(), args.pretty, args.verbose);
                 0
             }
             Err(e) => handle_error(&term, e),
         },
         (_, Some(server), _) => match query_one(server, args.ipv6, timeout).await {
             Ok(res) => {
-                output(&term, std::slice::from_ref(&res), args.format, args.pretty);
+                output(&term, std::slice::from_ref(&res), args.format.clone(), args.pretty, args.verbose);
                 0
             }
             Err(e) => handle_error(&term, e),
         },
         (_, None, Some(pos)) => match query_one(pos, args.ipv6, timeout).await {
             Ok(res) => {
-                output(&term, std::slice::from_ref(&res), args.format, args.pretty);
+                output(&term, std::slice::from_ref(&res), args.format.clone(), args.pretty, args.verbose);
                 0
             }
             Err(e) => handle_error(&term, e),
@@ -101,14 +106,14 @@ async fn main() {
     process::exit(exit_code);
 }
 
-fn output(term: &Term, results: &[rkik::ProbeResult], fmt: OutputFormat, pretty: bool) {
+fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool, verbose: bool) {
     match fmt {
         OutputFormat::Text => {
             if results.len() == 1 {
-                let s = fmt::text::render_probe(&results[0]);
+                let s = fmt::text::render_probe(&results[0], verbose);
                 term.write_line(&s).ok();
             } else {
-                let s = fmt::text::render_compare(results);
+                let s = fmt::text::render_compare(results, verbose);
                 term.write_line(&s).ok();
             }
         }
@@ -118,6 +123,7 @@ fn output(term: &Term, results: &[rkik::ProbeResult], fmt: OutputFormat, pretty:
         },
     }
 }
+
 
 fn handle_error(term: &Term, err: RkikError) -> i32 {
     let msg = format!("{}", err);

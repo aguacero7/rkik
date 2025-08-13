@@ -46,7 +46,7 @@ assert_cmd = "2.0"
 predicates = "3.0"
 
 [package.metadata.deb]
-maintainer = "Aguacero7 <liliantopbeau@gmail.com>"
+maintainer = "Aguacero7 <naps@teamnaps.fr>"
 depends = "libc6 (>= 2.29)"
 section = "utils"
 priority = "optional"
