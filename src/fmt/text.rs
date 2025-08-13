@@ -15,9 +15,9 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
          {rtt_lbl} {rtt_val:.3} ms",
         srv_lbl = style("Server:").cyan().bold(),
         srv_val = style(&r.target.name).green(),
-        ip_lbl  = style("IP:").cyan().bold(),
-        ip_val  = style(r.target.ip).green(),
-        ver     = ip_version,
+        ip_lbl = style("IP:").cyan().bold(),
+        ip_val = style(r.target.ip).green(),
+        ver = ip_version,
         utc_lbl = style("UTC Time:").cyan().bold(),
         utc_val = style(r.utc.to_rfc2822()).green(),
         loc_lbl = style("Local Time:").cyan().bold(),
@@ -94,8 +94,14 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
     }
 
     // Stats
-    let min = results.iter().map(|r| r.offset_ms).fold(f64::INFINITY, f64::min);
-    let max = results.iter().map(|r| r.offset_ms).fold(f64::NEG_INFINITY, f64::max);
+    let min = results
+        .iter()
+        .map(|r| r.offset_ms)
+        .fold(f64::INFINITY, f64::min);
+    let max = results
+        .iter()
+        .map(|r| r.offset_ms)
+        .fold(f64::NEG_INFINITY, f64::max);
     let avg = results.iter().map(|r| r.offset_ms).sum::<f64>() / results.len() as f64;
     let diff = max - min;
 
