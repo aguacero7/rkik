@@ -2,6 +2,9 @@ use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 use std::process;
 use std::time::Duration;
+use atty::Stream; // ← ajouter
+#[cfg(feature = "sync")]
+use rkik::sync::{sync_from_probe, SyncError};
 
 use rkik::{ProbeResult, RkikError, compare_many, fmt, query_one};
 
@@ -28,7 +31,7 @@ struct Args {
     pub verbose: bool,
 
     /// Output format: text or json
-    #[arg(short, long, default_value = "text")]
+    #[arg(short, long, default_value = "text", value_enum)] // ← value_enum explicite
     format: OutputFormat,
 
     /// Alias for JSON output
@@ -51,6 +54,11 @@ struct Args {
     #[arg(long, default_value_t = 5)]
     timeout: u64,
 
+    /// Enable one-shot system clock synchronization (requires root)
+    #[cfg(feature = "sync")]
+    #[arg(long)]
+    pub sync: bool, // ← enlever le point-virgule
+
     /// Positional server name or IP
     #[arg(index = 1)]
     positional: Option<String>,
@@ -59,51 +67,76 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let mut args = Args::parse();
-    if args.no_color {
-        set_colors_enabled(false);
-    }
-    let term = Term::stdout();
+
+    // alias --json
     if args.json {
         args.format = OutputFormat::Json;
     }
+
+    // colors
+    let want_color = matches!(args.format, OutputFormat::Text)
+        && atty::is(Stream::Stdout)
+        && std::env::var_os("NO_COLOR").is_none()
+        && !args.no_color;
+    set_colors_enabled(want_color);
+
+    let term = Term::stdout();
     let timeout = Duration::from_secs(args.timeout);
+
+    // refuse --sync with --compare
+    #[cfg(feature = "sync")]
+    if args.sync && args.compare.is_some() {
+        term.write_line(&style("--sync cannot be used with --compare").red().to_string()).ok();
+        process::exit(2);
+    }
 
     let exit_code = match (&args.compare, &args.server, &args.positional) {
         (Some(list), _, _) => match compare_many(list, args.ipv6, timeout).await {
             Ok(results) => {
-                output(
-                    &term,
-                    &results,
-                    args.format.clone(),
-                    args.pretty,
-                    args.verbose,
-                );
+                output(&term, &results, args.format.clone(), args.pretty, args.verbose);
                 0
             }
             Err(e) => handle_error(&term, e),
         },
         (_, Some(server), _) => match query_one(server, args.ipv6, timeout).await {
             Ok(res) => {
-                output(
-                    &term,
-                    std::slice::from_ref(&res),
-                    args.format.clone(),
-                    args.pretty,
-                    args.verbose,
-                );
+                output(&term, std::slice::from_ref(&res), args.format.clone(), args.pretty, args.verbose);
+
+                #[cfg(feature = "sync")]
+                if args.sync {
+                    match sync_from_probe(&res) {
+                        Ok(()) => 
+                            {
+                                let _ = term.write_line(&style("Sync applied").green().to_string());
+                            },
+                        Err(SyncError::Permission(e)) => { term.write_line(&format!("Error: {}", e)).ok(); process::exit(12); }
+                        Err(SyncError::Sys(e))        => { term.write_line(&format!("Error: {}", e)).ok(); process::exit(14); }
+                        Err(SyncError::NotSupported)  => { term.write_line("Error: sync not supported on this platform").ok(); process::exit(15); }
+                    }
+                }
+
                 0
             }
             Err(e) => handle_error(&term, e),
         },
         (_, None, Some(pos)) => match query_one(pos, args.ipv6, timeout).await {
             Ok(res) => {
-                output(
-                    &term,
-                    std::slice::from_ref(&res),
-                    args.format.clone(),
-                    args.pretty,
-                    args.verbose,
-                );
+                output(&term, std::slice::from_ref(&res), args.format.clone(), args.pretty, args.verbose);
+
+                #[cfg(feature = "sync")]
+                if args.sync {
+                    
+                    match sync_from_probe(&res) {
+                        Ok(()) =>
+                            {
+                                let _ = term.write_line(&style("Sync applied").green().to_string());
+                            },
+                        Err(SyncError::Permission(e)) => { term.write_line(&format!("Error: {}", e)).ok(); process::exit(12); }
+                        Err(SyncError::Sys(e))        => { term.write_line(&format!("Error: {}", e)).ok(); process::exit(14); }
+                        Err(SyncError::NotSupported)  => { term.write_line("Error: sync not supported on this platform").ok(); process::exit(15); }
+                    }
+                }
+
                 0
             }
             Err(e) => handle_error(&term, e),
@@ -114,8 +147,7 @@ async fn main() {
                     .red()
                     .bold()
                     .to_string(),
-            )
-            .ok();
+            ).ok();
             1
         }
     };
@@ -142,9 +174,7 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
 }
 
 fn handle_error(term: &Term, err: RkikError) -> i32 {
-    let msg = format!("{}", err);
-    term.write_line(&style(format!("Error: {}", msg)).red().to_string())
-        .ok();
+    term.write_line(&style(format!("Error: {}", err)).red().to_string()).ok();
     match err {
         RkikError::Dns(_) => 2,
         RkikError::Network(ref s) if s == "timeout" => 3,
