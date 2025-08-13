@@ -1,10 +1,10 @@
+use atty::Stream; // ← ajouter
 use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
+#[cfg(feature = "sync")]
+use rkik::sync::{SyncError, sync_from_probe};
 use std::process;
 use std::time::Duration;
-use atty::Stream; // ← ajouter
-#[cfg(feature = "sync")]
-use rkik::sync::{sync_from_probe, SyncError};
 
 use rkik::{ProbeResult, RkikError, compare_many, fmt, query_one};
 
@@ -86,32 +86,58 @@ async fn main() {
     // refuse --sync with --compare
     #[cfg(feature = "sync")]
     if args.sync && args.compare.is_some() {
-        term.write_line(&style("--sync cannot be used with --compare").red().to_string()).ok();
+        term.write_line(
+            &style("--sync cannot be used with --compare")
+                .red()
+                .to_string(),
+        )
+        .ok();
         process::exit(2);
     }
 
     let exit_code = match (&args.compare, &args.server, &args.positional) {
         (Some(list), _, _) => match compare_many(list, args.ipv6, timeout).await {
             Ok(results) => {
-                output(&term, &results, args.format.clone(), args.pretty, args.verbose);
+                output(
+                    &term,
+                    &results,
+                    args.format.clone(),
+                    args.pretty,
+                    args.verbose,
+                );
                 0
             }
             Err(e) => handle_error(&term, e),
         },
         (_, Some(server), _) => match query_one(server, args.ipv6, timeout).await {
             Ok(res) => {
-                output(&term, std::slice::from_ref(&res), args.format.clone(), args.pretty, args.verbose);
+                output(
+                    &term,
+                    std::slice::from_ref(&res),
+                    args.format.clone(),
+                    args.pretty,
+                    args.verbose,
+                );
 
                 #[cfg(feature = "sync")]
                 if args.sync {
                     match sync_from_probe(&res) {
-                        Ok(()) => 
-                            {
-                                let _ = term.write_line(&style("Sync applied").green().to_string());
-                            },
-                        Err(SyncError::Permission(e)) => { term.write_line(&format!("Error: {}", e)).ok(); process::exit(12); }
-                        Err(SyncError::Sys(e))        => { term.write_line(&format!("Error: {}", e)).ok(); process::exit(14); }
-                        Err(SyncError::NotSupported)  => { term.write_line("Error: sync not supported on this platform").ok(); process::exit(15); }
+                        Ok(()) => {
+                            let _ = term.write_line(&style("Sync applied").green().to_string());
+                        }
+                        Err(SyncError::Permission(e)) => {
+                            term.write_line(&format!("Error: {}", e)).ok();
+                            process::exit(12);
+                        }
+                        Err(SyncError::Sys(e)) => {
+                            term.write_line(&format!("Error: {}", e)).ok();
+                            process::exit(14);
+                        }
+                        Err(SyncError::NotSupported) => {
+                            term.write_line("Error: sync not supported on this platform")
+                                .ok();
+                            process::exit(15);
+                        }
                     }
                 }
 
@@ -121,19 +147,33 @@ async fn main() {
         },
         (_, None, Some(pos)) => match query_one(pos, args.ipv6, timeout).await {
             Ok(res) => {
-                output(&term, std::slice::from_ref(&res), args.format.clone(), args.pretty, args.verbose);
+                output(
+                    &term,
+                    std::slice::from_ref(&res),
+                    args.format.clone(),
+                    args.pretty,
+                    args.verbose,
+                );
 
                 #[cfg(feature = "sync")]
                 if args.sync {
-                    
                     match sync_from_probe(&res) {
-                        Ok(()) =>
-                            {
-                                let _ = term.write_line(&style("Sync applied").green().to_string());
-                            },
-                        Err(SyncError::Permission(e)) => { term.write_line(&format!("Error: {}", e)).ok(); process::exit(12); }
-                        Err(SyncError::Sys(e))        => { term.write_line(&format!("Error: {}", e)).ok(); process::exit(14); }
-                        Err(SyncError::NotSupported)  => { term.write_line("Error: sync not supported on this platform").ok(); process::exit(15); }
+                        Ok(()) => {
+                            let _ = term.write_line(&style("Sync applied").green().to_string());
+                        }
+                        Err(SyncError::Permission(e)) => {
+                            term.write_line(&format!("Error: {}", e)).ok();
+                            process::exit(12);
+                        }
+                        Err(SyncError::Sys(e)) => {
+                            term.write_line(&format!("Error: {}", e)).ok();
+                            process::exit(14);
+                        }
+                        Err(SyncError::NotSupported) => {
+                            term.write_line("Error: sync not supported on this platform")
+                                .ok();
+                            process::exit(15);
+                        }
                     }
                 }
 
@@ -147,7 +187,8 @@ async fn main() {
                     .red()
                     .bold()
                     .to_string(),
-            ).ok();
+            )
+            .ok();
             1
         }
     };
@@ -174,7 +215,8 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
 }
 
 fn handle_error(term: &Term, err: RkikError) -> i32 {
-    term.write_line(&style(format!("Error: {}", err)).red().to_string()).ok();
+    term.write_line(&style(format!("Error: {}", err)).red().to_string())
+        .ok();
     match err {
         RkikError::Dns(_) => 2,
         RkikError::Network(ref s) if s == "timeout" => 3,
