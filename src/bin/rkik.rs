@@ -73,7 +73,7 @@ async fn main() {
         args.format = OutputFormat::Json;
     }
 
-    // Politique couleurs: JSON => off ; Texte => seulement si TTY, sans NO_COLOR, sans --no-color
+    // colors
     let want_color = matches!(args.format, OutputFormat::Text)
         && atty::is(Stream::Stdout)
         && std::env::var_os("NO_COLOR").is_none()
@@ -83,7 +83,7 @@ async fn main() {
     let term = Term::stdout();
     let timeout = Duration::from_secs(args.timeout);
 
-    // Refuser --sync avec --compare (ambigu)
+    // refuse --sync with --compare
     #[cfg(feature = "sync")]
     if args.sync && args.compare.is_some() {
         term.write_line(&style("--sync cannot be used with --compare").red().to_string()).ok();
@@ -100,10 +100,8 @@ async fn main() {
         },
         (_, Some(server), _) => match query_one(server, args.ipv6, timeout).await {
             Ok(res) => {
-                // Affichage
                 output(&term, std::slice::from_ref(&res), args.format.clone(), args.pretty, args.verbose);
 
-                // Synchro (si feature + flag)
                 #[cfg(feature = "sync")]
                 if args.sync {
                     match sync_from_probe(&res) {
@@ -127,6 +125,7 @@ async fn main() {
 
                 #[cfg(feature = "sync")]
                 if args.sync {
+                    
                     match sync_from_probe(&res) {
                         Ok(()) =>
                             {

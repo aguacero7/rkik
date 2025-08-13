@@ -14,8 +14,8 @@ pub enum SyncError {
 
 /// Compute target UTC (server UTC + RTT/2) and step system clock.
 pub fn sync_from_probe(probe: &ProbeResult) -> Result<(), SyncError> {
-    let half_rtt_ns = (probe.rtt_ms * 1_000_000.0 / 2.0).round() as i64 * 1000;
-    let target = probe.utc + Duration::nanoseconds(half_rtt_ns);
+    let offset_us = (probe.offset_ms * 1000.0).round() as i64; // ms -> µs
+    let target = Utc::now() + Duration::microseconds(offset_us);
     step_to_utc(&target)
 }
 
