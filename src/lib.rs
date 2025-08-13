@@ -10,3 +10,6 @@ pub use domain::ntp::{ProbeResult, Target};
 pub use error::RkikError;
 pub use services::compare::compare_many;
 pub use services::query::query_one;
+
+#[cfg(feature = "sync")]
+pub mod sync;
