@@ -3,8 +3,6 @@ use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
 use rkik::sync::{SyncError, sync_from_probe};
-#[cfg(feature = "sync")]
-use rkik::sync::{SyncError, sync_from_probe};
 use std::process;
 use std::time::Duration;
 
