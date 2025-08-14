@@ -59,7 +59,7 @@ struct Args {
     /// Enable one-shot system clock synchronization (requires root)
     #[cfg(feature = "sync")]
     #[arg(long)]
-    pub sync: bool, // ← enlever le point-virgule
+    pub sync: bool,
 
     /// Positional server name or IP
     #[arg(index = 1)]
