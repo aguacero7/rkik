@@ -60,7 +60,7 @@ rkik --help
 
 ---
 
-## 🧪 Usage Examples
+## Usage Examples
 
 | Command                                          | Description                                |
 |--------------------------------------------------|--------------------------------------------|
@@ -74,7 +74,7 @@ rkik --help
 
 ---
 
-## 📦 Output Examples
+## Output Examples
 
 **Human-readable:**
 ```
