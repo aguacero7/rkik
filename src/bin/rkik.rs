@@ -1,11 +1,10 @@
-use atty::Stream; // ← ajouter
+use atty::Stream; 
 use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
 use rkik::sync::{SyncError, sync_from_probe};
 use std::process;
 use std::time::Duration;
-use atty::Stream; // ← ajouter
 #[cfg(feature = "sync")]
 use rkik::sync::{sync_from_probe, SyncError};
 
