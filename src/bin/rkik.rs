@@ -36,11 +36,11 @@ struct Args {
     format: OutputFormat,
 
     /// Alias for JSON output
-    #[arg(long)]
+    #[arg(short = 'j', long)]
     json: bool,
 
     /// Pretty-print JSON
-    #[arg(long)]
+    #[arg(short = 'p', long)]
     pretty: bool,
 
     /// Disable colored output
@@ -63,6 +63,15 @@ struct Args {
     /// Positional server name or IP
     #[arg(index = 1)]
     positional: Option<String>,
+
+    /// Infinite count mode
+    #[arg(short = '8', long)]
+    infinite: bool,
+
+    /// Interval between queries in seconds (only with --infinite or --count)
+    #[arg(short = 'i', long, default_value_t = 10)]
+    interval: u64,
+    
 }
 
 #[tokio::main]
@@ -208,7 +217,7 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
                 term.write_line(&s).ok();
             }
         }
-        OutputFormat::Json => match fmt::json::to_json(results, pretty) {
+        OutputFormat::Json => match fmt::json::to_json(results, pretty,verbose) {
             Ok(s) => println!("{}", s),
             Err(e) => eprintln!("error serializing: {}", e),
         },

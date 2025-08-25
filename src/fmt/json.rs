@@ -12,11 +12,14 @@ pub struct JsonProbe {
     pub ip: String,
     pub offset_ms: f64,
     pub rtt_ms: f64,
-    pub stratum: u8,
-    pub ref_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stratum: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ref_id: Option<String>,
     pub utc: String,
     pub local: String,
 }
+
 
 #[cfg(feature = "json")]
 #[derive(Serialize)]
@@ -28,7 +31,7 @@ pub struct JsonRun {
 
 /// Serialize probe results into JSON string.
 #[allow(unused_variables)]
-pub fn to_json(results: &[ProbeResult], pretty: bool) -> Result<String, RkikError> {
+pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<String, RkikError> {
     #[cfg(feature = "json")]
     {
         let probes = results
@@ -38,17 +41,19 @@ pub fn to_json(results: &[ProbeResult], pretty: bool) -> Result<String, RkikErro
                 ip: r.target.ip.to_string(),
                 offset_ms: r.offset_ms,
                 rtt_ms: r.rtt_ms,
-                stratum: r.stratum,
-                ref_id: r.ref_id.clone(),
                 utc: r.utc.to_rfc3339(),
                 local: r.local.format("%Y-%m-%d %H:%M:%S").to_string(),
+                stratum: if verbose { Some(r.stratum) } else { None },
+                ref_id: if verbose { Some(r.ref_id.clone()) } else { None },
             })
             .collect();
+
         let run = JsonRun {
             schema_version: 1,
             run_ts: Utc::now().to_rfc3339(),
             results: probes,
         };
+
         let text = if pretty {
             serde_json::to_string_pretty(&run).map_err(|e| RkikError::Other(e.to_string()))?
         } else {
@@ -60,6 +65,8 @@ pub fn to_json(results: &[ProbeResult], pretty: bool) -> Result<String, RkikErro
     {
         let _ = results;
         let _ = pretty;
+        let _ = verbose;
         Err(RkikError::Other("json feature disabled".into()))
     }
 }
+
