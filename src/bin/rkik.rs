@@ -19,7 +19,7 @@ enum OutputFormat {
 #[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")]
 struct Args {
-    /// Query a single NTP server
+    /// Query a single NTP server (optional)
     #[arg(short, long)]
     server: Option<String>,
 
@@ -32,7 +32,7 @@ struct Args {
     pub verbose: bool,
 
     /// Output format: text or json
-    #[arg(short, long, default_value = "text", value_enum)] // ← value_enum explicite
+    #[arg(short, long, default_value = "text", value_enum)] 
     format: OutputFormat,
 
     /// Alias for JSON output
