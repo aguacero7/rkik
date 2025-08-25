@@ -12,6 +12,7 @@ use rkik::{ProbeResult, RkikError, compare_many, fmt, query_one};
 enum OutputFormat {
     Text,
     Json,
+    Simple,
 }
 
 #[derive(Parser, Debug)]
@@ -32,7 +33,7 @@ struct Args {
     pub verbose: bool,
 
     /// Output format: text or json
-    #[arg(short, long, default_value = "text", value_enum)] // ← value_enum explicite
+    #[arg(short = 'f', long, default_value = "text", value_enum)]
     format: OutputFormat,
 
     /// Alias for JSON output
@@ -69,9 +70,12 @@ struct Args {
     infinite: bool,
 
     /// Interval between queries in seconds (only with --infinite or --count)
-    #[arg(short = 'i', long, default_value_t = 10)]
+    #[arg(short = 'i', long, default_value_t = 1)]
     interval: u64,
     
+    /// Specific count of requests 
+    #[arg(short = 'c', long, default_value_t = 1)]
+    count: u32,
 }
 
 #[tokio::main]
