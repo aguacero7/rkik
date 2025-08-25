@@ -32,7 +32,7 @@ struct Args {
     pub verbose: bool,
 
     /// Output format: text or json
-    #[arg(short, long, default_value = "text", value_enum)] 
+    #[arg(short, long, default_value = "text", value_enum)]
     format: OutputFormat,
 
     /// Alias for JSON output
