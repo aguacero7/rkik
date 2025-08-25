@@ -16,6 +16,7 @@ enum OutputFormat {
 
 #[derive(Parser, Debug)]
 #[command(name = "rkik")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")]
 struct Args {
     /// Query a single NTP server
