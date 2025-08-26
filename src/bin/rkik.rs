@@ -8,8 +8,8 @@ use std::time::Duration;
 use tokio::signal;
 
 use rkik::{
-    stats::{compute_stats, Stats},
     ProbeResult, RkikError, compare_many, fmt, query_one,
+    stats::{Stats, compute_stats},
 };
 use std::collections::HashMap;
 
@@ -151,8 +151,21 @@ async fn main() {
                 match compare_many(list, args.ipv6, timeout).await {
                     Ok(results) => {
                         if args.count > 1 || args.infinite {
-                            let line = fmt::text::render_short_compare(&results);
-                            term.write_line(&line).ok();
+                            match args.format {
+                                OutputFormat::Text => {
+                                    let line = fmt::text::render_short_compare(&results);
+                                    term.write_line(&line).ok();
+                                }
+                                _ => {
+                                    output(
+                                        &term,
+                                        &results,
+                                        args.format.clone(),
+                                        args.pretty,
+                                        args.verbose,
+                                    );
+                                }
+                            }
                         } else {
                             output(
                                 &term,
@@ -161,7 +174,7 @@ async fn main() {
                                 args.pretty,
                                 args.verbose,
                             );
-                        }
+                      }
                         for r in results {
                             all.entry(r.target.name.clone()).or_default().push(r);
                         }
@@ -192,23 +205,50 @@ async fn main() {
                     .map(|(name, vals)| (name, compute_stats(&vals)))
                     .collect();
                 stats_list.sort_by(|a, b| a.0.cmp(&b.0));
-                for (name, st) in &stats_list {
-                    let line = fmt::text::render_stats(name, st);
-                    term.write_line(&line).ok();
+                match args.format {
+                    OutputFormat::Json => {
+                        match fmt::json::stats_list_to_json(&stats_list, args.pretty) {
+                            Ok(s) => println!("{}", s),
+                            Err(e) => eprintln!("error serializing: {}", e),
+                        }
+                    }
+                    _ => {
+                        for (name, st) in &stats_list {
+                            let line = fmt::text::render_stats(name, st);
+                            term.write_line(&line).ok();
+                        }
+                        let min = stats_list
+                            .iter()
+                            .map(|(_, s)| s.offset_avg)
+                            .fold(f64::INFINITY, f64::min);
+                        let max = stats_list
+                            .iter()
+                            .map(|(_, s)| s.offset_avg)
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        let drift = max - min;
+                        let _ = term.write_line(&format!("Max avg drift: {:.3} ms", drift));
+                    }
+                    Err(e) => {
+                        let code = handle_error(&term, e);
+                        process::exit(code);
+                    }
                 }
-                let min = stats_list
-                    .iter()
-                    .map(|(_, s)| s.offset_avg)
-                    .fold(f64::INFINITY, f64::min);
-                let max = stats_list
-                    .iter()
-                    .map(|(_, s)| s.offset_avg)
-                    .fold(f64::NEG_INFINITY, f64::max);
-                let drift = max - min;
-                let _ = term.write_line(&format!("Max avg drift: {:.3} ms", drift));
+                n += 1;
+                if !args.infinite && n >= args.count {
+                    break;
+                }
+                if args.infinite {
+                    let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+                    tokio::select! {
+                        _ = sleep => {},
+                        _ = signal::ctrl_c() => { break; }
+                    }
+                } else {
+                    tokio::time::sleep(Duration::from_secs(args.interval)).await;
+                }
             }
             0
-        },
+        }
         (_, Some(server), _) => {
             let mut all = Vec::new();
             let mut n = 0u32;
@@ -216,8 +256,21 @@ async fn main() {
                 match query_one(server, args.ipv6, timeout).await {
                     Ok(res) => {
                         if args.count > 1 || args.infinite {
-                            let line = fmt::text::render_short_probe(&res);
-                            term.write_line(&line).ok();
+                            match args.format {
+                                OutputFormat::Text => {
+                                    let line = fmt::text::render_short_probe(&res);
+                                    term.write_line(&line).ok();
+                                }
+                                _ => {
+                                    output(
+                                        &term,
+                                        std::slice::from_ref(&res),
+                                        args.format.clone(),
+                                        args.pretty,
+                                        args.verbose,
+                                    );
+                                }
+                            }
                         } else {
                             output(
                                 &term,
@@ -251,8 +304,18 @@ async fn main() {
 
             if all.len() > 1 {
                 let stats = compute_stats(&all);
-                let line = fmt::text::render_stats(&all[0].target.name, &stats);
-                term.write_line(&line).ok();
+                match args.format {
+                    OutputFormat::Json => {
+                        match fmt::json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
+                            Ok(s) => println!("{}", s),
+                            Err(e) => eprintln!("error serializing: {}", e),
+                        }
+                    }
+                    _ => {
+                        let line = fmt::text::render_stats(&all[0].target.name, &stats);
+                        term.write_line(&line).ok();
+                    }
+                }
             }
 
             #[cfg(feature = "sync")]
@@ -287,8 +350,21 @@ async fn main() {
                 match query_one(pos, args.ipv6, timeout).await {
                     Ok(res) => {
                         if args.count > 1 || args.infinite {
-                            let line = fmt::text::render_short_probe(&res);
-                            term.write_line(&line).ok();
+                            match args.format {
+                                OutputFormat::Text => {
+                                    let line = fmt::text::render_short_probe(&res);
+                                    term.write_line(&line).ok();
+                                }
+                                _ => {
+                                    output(
+                                        &term,
+                                        std::slice::from_ref(&res),
+                                        args.format.clone(),
+                                        args.pretty,
+                                        args.verbose,
+                                    );
+                                }
+                            }
                         } else {
                             output(
                                 &term,
@@ -297,7 +373,7 @@ async fn main() {
                                 args.pretty,
                                 args.verbose,
                             );
-                        }
+                      }
                         all.push(res);
                     }
                     Err(e) => {
@@ -322,8 +398,23 @@ async fn main() {
 
             if all.len() > 1 {
                 let stats = compute_stats(&all);
-                let line = fmt::text::render_stats(&all[0].target.name, &stats);
-                term.write_line(&line).ok();
+                match args.format {
+                    OutputFormat::Json => {
+                        match fmt::json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
+                            Ok(s) => println!("{}", s),
+                            Err(e) => eprintln!("error serializing: {}", e),
+                        }
+                        all.push(res);
+                    }
+                    Err(e) => {
+                        let code = handle_error(&term, e);
+                        process::exit(code);
+                    }
+                    _ => {
+                        let line = fmt::text::render_stats(&all[0].target.name, &stats);
+                        term.write_line(&line).ok();
+                    }
+                }
             }
 
             #[cfg(feature = "sync")]
@@ -348,7 +439,6 @@ async fn main() {
                     }
                 }
             }
-
             0
         }
         _ => {
@@ -383,10 +473,10 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
         },
         OutputFormat::Simple => {
             if results.len() == 1 {
-                let s = fmt::text::render_probe(&results[0], false);
+                let s = fmt::text::render_simple_probe(&results[0]);
                 term.write_line(&s).ok();
             } else {
-                let s = fmt::text::render_compare(results, false);
+                let s = fmt::text::render_simple_compare(results);
                 term.write_line(&s).ok();
             }
         }

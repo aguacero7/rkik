@@ -121,9 +121,9 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
 /// Render a minimal line for a probe result.
 pub fn render_short_probe(r: &ProbeResult) -> String {
     format!(
-        "{name} {offset:.3} ms",
-        name = r.target.name,
-        offset = r.offset_ms
+        "{name} {offset}",
+        name = style(&r.target.name).green(),
+        offset = style(format!("{:.3} ms", r.offset_ms)).yellow()
     )
 }
 
@@ -131,7 +131,14 @@ pub fn render_short_probe(r: &ProbeResult) -> String {
 pub fn render_short_compare(results: &[ProbeResult]) -> String {
     results
         .iter()
-        .map(|r| format!("{name}:{off:.3}", name = r.target.name, off = r.offset_ms))
+        .map(|r| {
+            format!(
+                "{name}:{off}",
+                name = style(&r.target.name).green(),
+                off = style(format!("{:.3}", r.offset_ms)).yellow()
+            )
+        })
+==
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -147,4 +154,18 @@ pub fn render_stats(name: &str, stats: &Stats) -> String {
         rtt = stats.rtt_avg,
         cnt = stats.count
     )
+}
+
+/// Render a probe in simple mode (timestamp and IP only).
+pub fn render_simple_probe(r: &ProbeResult) -> String {
+    format!("{} {}", r.utc.to_rfc3339(), r.target.ip)
+}
+
+/// Render multiple probes in simple mode.
+pub fn render_simple_compare(results: &[ProbeResult]) -> String {
+    results
+        .iter()
+        .map(render_simple_probe)
+        .collect::<Vec<_>>()
+        .join("\n")
 }

@@ -1,6 +1,9 @@
 use crate::domain::ntp::ProbeResult;
+#[cfg(feature = "json")]
+use serde::Serialize;
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "json", derive(Serialize))]
 pub struct Stats {
     pub count: usize,
     pub offset_avg: f64,
