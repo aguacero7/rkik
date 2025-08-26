@@ -45,6 +45,10 @@ struct Args {
     #[arg(short = 'j', long)]
     json: bool,
 
+    /// Alias for simple / short text output
+    #[arg(short = 'S', long)]
+    short: bool,
+
     /// Pretty-print JSON
     #[arg(short = 'p', long)]
     pretty: bool,
@@ -81,6 +85,7 @@ struct Args {
     /// Specific count of requests
     #[arg(short = 'c', long, default_value_t = 1)]
     count: u32,
+
 }
 
 #[tokio::main]
@@ -91,9 +96,11 @@ async fn main() {
     if args.json {
         args.format = OutputFormat::Json;
     }
-
+    if args.short {
+        args.format = OutputFormat::Simple;
+    }
     // colors
-    let want_color = matches!(args.format, OutputFormat::Text)
+    let want_color = (matches!(args.format, OutputFormat::Text) ||matches!(args.format, OutputFormat::Simple))
         && atty::is(Stream::Stdout)
         && std::env::var_os("NO_COLOR").is_none()
         && !args.no_color;
@@ -110,6 +117,14 @@ async fn main() {
         )
         .ok();
         process::exit(2);
+    }
+    if matches!(args.format, OutputFormat::Simple) && args.verbose {
+        term.write_line(
+            &style("--verbose has no effect with short format")
+                .yellow()
+                .to_string(),
+        )
+        .ok();
     }
     if args.interval != 1 && !args.infinite && args.count == 1 {
         term.write_line(
@@ -174,7 +189,7 @@ async fn main() {
                                 args.pretty,
                                 args.verbose,
                             );
-                      }
+                        }
                         for r in results {
                             all.entry(r.target.name.clone()).or_default().push(r);
                         }
@@ -228,217 +243,16 @@ async fn main() {
                         let drift = max - min;
                         let _ = term.write_line(&format!("Max avg drift: {:.3} ms", drift));
                     }
-                    Err(e) => {
-                        let code = handle_error(&term, e);
-                        process::exit(code);
-                    }
-                }
-                n += 1;
-                if !args.infinite && n >= args.count {
-                    break;
-                }
-                if args.infinite {
-                    let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
-                    tokio::select! {
-                        _ = sleep => {},
-                        _ = signal::ctrl_c() => { break; }
-                    }
-                } else {
-                    tokio::time::sleep(Duration::from_secs(args.interval)).await;
                 }
             }
             0
         }
         (_, Some(server), _) => {
-            let mut all = Vec::new();
-            let mut n = 0u32;
-            loop {
-                match query_one(server, args.ipv6, timeout).await {
-                    Ok(res) => {
-                        if args.count > 1 || args.infinite {
-                            match args.format {
-                                OutputFormat::Text => {
-                                    let line = fmt::text::render_short_probe(&res);
-                                    term.write_line(&line).ok();
-                                }
-                                _ => {
-                                    output(
-                                        &term,
-                                        std::slice::from_ref(&res),
-                                        args.format.clone(),
-                                        args.pretty,
-                                        args.verbose,
-                                    );
-                                }
-                            }
-                        } else {
-                            output(
-                                &term,
-                                std::slice::from_ref(&res),
-                                args.format.clone(),
-                                args.pretty,
-                                args.verbose,
-                            );
-                        }
-                        all.push(res);
-                    }
-                    Err(e) => {
-                        let code = handle_error(&term, e);
-                        process::exit(code);
-                    }
-                }
-                n += 1;
-                if !args.infinite && n >= args.count {
-                    break;
-                }
-                if args.infinite {
-                    let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
-                    tokio::select! {
-                        _ = sleep => {},
-                        _ = signal::ctrl_c() => { break; }
-                    }
-                } else {
-                    tokio::time::sleep(Duration::from_secs(args.interval)).await;
-                }
-            }
-
-            if all.len() > 1 {
-                let stats = compute_stats(&all);
-                match args.format {
-                    OutputFormat::Json => {
-                        match fmt::json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
-                            Ok(s) => println!("{}", s),
-                            Err(e) => eprintln!("error serializing: {}", e),
-                        }
-                    }
-                    _ => {
-                        let line = fmt::text::render_stats(&all[0].target.name, &stats);
-                        term.write_line(&line).ok();
-                    }
-                }
-            }
-
-            #[cfg(feature = "sync")]
-            if args.sync {
-                let probe = average_probe(&all);
-                match sync_from_probe(&probe) {
-                    Ok(()) => {
-                        let _ = term.write_line(&style("Sync applied").green().to_string());
-                    }
-                    Err(SyncError::Permission(e)) => {
-                        term.write_line(&format!("Error: {}", e)).ok();
-                        process::exit(12);
-                    }
-                    Err(SyncError::Sys(e)) => {
-                        term.write_line(&format!("Error: {}", e)).ok();
-                        process::exit(14);
-                    }
-                    Err(SyncError::NotSupported) => {
-                        term.write_line("Error: sync not supported on this platform")
-                            .ok();
-                        process::exit(15);
-                    }
-                }
-            }
-
+            query_loop(server, &args, &term, timeout).await;
             0
         }
         (_, None, Some(pos)) => {
-            let mut all = Vec::new();
-            let mut n = 0u32;
-            loop {
-                match query_one(pos, args.ipv6, timeout).await {
-                    Ok(res) => {
-                        if args.count > 1 || args.infinite {
-                            match args.format {
-                                OutputFormat::Text => {
-                                    let line = fmt::text::render_short_probe(&res);
-                                    term.write_line(&line).ok();
-                                }
-                                _ => {
-                                    output(
-                                        &term,
-                                        std::slice::from_ref(&res),
-                                        args.format.clone(),
-                                        args.pretty,
-                                        args.verbose,
-                                    );
-                                }
-                            }
-                        } else {
-                            output(
-                                &term,
-                                std::slice::from_ref(&res),
-                                args.format.clone(),
-                                args.pretty,
-                                args.verbose,
-                            );
-                      }
-                        all.push(res);
-                    }
-                    Err(e) => {
-                        let code = handle_error(&term, e);
-                        process::exit(code);
-                    }
-                }
-                n += 1;
-                if !args.infinite && n >= args.count {
-                    break;
-                }
-                if args.infinite {
-                    let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
-                    tokio::select! {
-                        _ = sleep => {},
-                        _ = signal::ctrl_c() => { break; }
-                    }
-                } else {
-                    tokio::time::sleep(Duration::from_secs(args.interval)).await;
-                }
-            }
-
-            if all.len() > 1 {
-                let stats = compute_stats(&all);
-                match args.format {
-                    OutputFormat::Json => {
-                        match fmt::json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
-                            Ok(s) => println!("{}", s),
-                            Err(e) => eprintln!("error serializing: {}", e),
-                        }
-                        all.push(res);
-                    }
-                    Err(e) => {
-                        let code = handle_error(&term, e);
-                        process::exit(code);
-                    }
-                    _ => {
-                        let line = fmt::text::render_stats(&all[0].target.name, &stats);
-                        term.write_line(&line).ok();
-                    }
-                }
-            }
-
-            #[cfg(feature = "sync")]
-            if args.sync {
-                let probe = average_probe(&all);
-                match sync_from_probe(&probe) {
-                    Ok(()) => {
-                        let _ = term.write_line(&style("Sync applied").green().to_string());
-                    }
-                    Err(SyncError::Permission(e)) => {
-                        term.write_line(&format!("Error: {}", e)).ok();
-                        process::exit(12);
-                    }
-                    Err(SyncError::Sys(e)) => {
-                        term.write_line(&format!("Error: {}", e)).ok();
-                        process::exit(14);
-                    }
-                    Err(SyncError::NotSupported) => {
-                        term.write_line("Error: sync not supported on this platform")
-                            .ok();
-                        process::exit(15);
-                    }
-                }
-            }
+            query_loop(pos, &args, &term, timeout).await;
             0
         }
         _ => {
@@ -454,6 +268,101 @@ async fn main() {
     };
 
     process::exit(exit_code);
+}
+
+async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
+    let mut all = Vec::new();
+    let mut n = 0u32;
+    loop {
+        match query_one(target, args.ipv6, timeout).await {
+            Ok(res) => {
+                if args.count > 1 || args.infinite {
+                    let format = args.format.clone();
+                    match format {
+                        OutputFormat::Text => {
+                            let line = fmt::text::render_short_probe(&res);
+                            term.write_line(&line).ok();
+                        }
+                        _ => {
+                            output(
+                                term,
+                                std::slice::from_ref(&res),
+                                format,
+                                args.pretty,
+                                args.verbose,
+                            );
+                        }
+                    }
+                } else {
+                    output(
+                        term,
+                        std::slice::from_ref(&res),
+                        args.format.clone(),
+                        args.pretty,
+                        args.verbose,
+                    );
+                }
+                all.push(res);
+            }
+            Err(e) => {
+                let code = handle_error(term, e);
+                process::exit(code);
+            }
+        }
+        n += 1;
+        if !args.infinite && n >= args.count {
+            break;
+        }
+        if args.infinite {
+            let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+            tokio::select! {
+                _ = sleep => {},
+                _ = signal::ctrl_c() => { break; }
+            }
+        } else {
+            tokio::time::sleep(Duration::from_secs(args.interval)).await;
+        }
+    }
+
+    if all.len() > 1 {
+        let stats = compute_stats(&all);
+        let format = args.format.clone();
+        match format {
+            OutputFormat::Json => {
+                match fmt::json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
+                    Ok(s) => println!("{}", s),
+                    Err(e) => eprintln!("error serializing: {}", e),
+                }
+            }
+            _ => {
+                let line = fmt::text::render_stats(&all[0].target.name, &stats);
+                term.write_line(&line).ok();
+            }
+        }
+    }
+
+    #[cfg(feature = "sync")]
+    if args.sync {
+        let probe = average_probe(&all);
+        match sync_from_probe(&probe) {
+            Ok(()) => {
+                let _ = term.write_line(&style("Sync applied").green().to_string());
+            }
+            Err(SyncError::Permission(e)) => {
+                term.write_line(&format!("Error: {}", e)).ok();
+                process::exit(12);
+            }
+            Err(SyncError::Sys(e)) => {
+                term.write_line(&format!("Error: {}", e)).ok();
+                process::exit(14);
+            }
+            Err(SyncError::NotSupported) => {
+                term.write_line("Error: sync not supported on this platform")
+                    .ok();
+                process::exit(15);
+            }
+        }
+    }
 }
 
 fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool, verbose: bool) {

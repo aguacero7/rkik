@@ -136,23 +136,30 @@ pub fn render_short_compare(results: &[ProbeResult]) -> String {
                 "{name}:{off}",
                 name = style(&r.target.name).green(),
                 off = style(format!("{:.3}", r.offset_ms)).yellow()
+                
             )
         })
-==
         .collect::<Vec<_>>()
         .join(" ")
 }
 
-/// Render statistics for a set of probe results.
+/// Render statistics for a set of probe results
 pub fn render_stats(name: &str, stats: &Stats) -> String {
+    fn fmt_ms(v: f64) -> String { format!("{:.3} ms", v) }
+
     format!(
-        "{name}: avg {avg:.3} ms (min {min:.3}, max {max:.3}) rtt {rtt:.3} ms over {cnt}",
-        name = name,
-        avg = stats.offset_avg,
-        min = stats.offset_min,
-        max = stats.offset_max,
-        rtt = stats.rtt_avg,
-        cnt = stats.count
+        "\n{n}: {avg_lbl} {avg} ({min_lbl} {min}, {max_lbl} {max}) {rtt_lbl} {rtt} ({cnt} {rqst})",
+        n        = style(name).green().bold(),
+        avg_lbl  = style("avg").cyan().bold(),
+        avg      = style(fmt_ms(stats.offset_avg)).green(),
+        min_lbl  = style("min").cyan().bold(),
+        min      = style(fmt_ms(stats.offset_min)).green(),
+        max_lbl  = style("max").cyan().bold(),
+        max      = style(fmt_ms(stats.offset_max)).green(),
+        rtt_lbl  = style("rtt").cyan().bold(),
+        rtt      = style(fmt_ms(stats.rtt_avg)).green(),
+        cnt      = style(stats.count).green(),
+        rqst     = style("requests").green(),
     )
 }
 
