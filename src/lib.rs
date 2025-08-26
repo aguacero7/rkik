@@ -5,6 +5,7 @@ pub mod domain;
 mod error;
 pub mod fmt;
 pub mod services;
+pub mod stats;
 
 pub use domain::ntp::{ProbeResult, Target};
 pub use error::RkikError;

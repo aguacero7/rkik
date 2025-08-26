@@ -1,4 +1,5 @@
 use crate::domain::ntp::ProbeResult;
+use crate::stats::Stats;
 use console::style;
 
 /// Render a probe result into human readable text with the legacy style.
@@ -115,4 +116,55 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
     ));
 
     out
+}
+
+/// Render a minimal line for a probe result.
+pub fn render_short_probe(r: &ProbeResult) -> String {
+    format!(
+        "{name} {offset}",
+        name = style(&r.target.name).green(),
+        offset = style(format!("{:.3} ms", r.offset_ms)).yellow()
+    )
+}
+
+/// Render a minimal line for comparison results.
+pub fn render_short_compare(results: &[ProbeResult]) -> String {
+    results
+        .iter()
+        .map(|r| {
+            format!(
+                "{name}:{off}",
+                name = style(&r.target.name).green(),
+                off = style(format!("{:.3}", r.offset_ms)).yellow()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Render statistics for a set of probe results.
+pub fn render_stats(name: &str, stats: &Stats) -> String {
+    format!(
+        "{name}: avg {avg:.3} ms (min {min:.3}, max {max:.3}) rtt {rtt:.3} ms over {cnt}",
+        name = name,
+        avg = stats.offset_avg,
+        min = stats.offset_min,
+        max = stats.offset_max,
+        rtt = stats.rtt_avg,
+        cnt = stats.count
+    )
+}
+
+/// Render a probe in simple mode (timestamp and IP only).
+pub fn render_simple_probe(r: &ProbeResult) -> String {
+    format!("{} {}", r.utc.to_rfc3339(), r.target.ip)
+}
+
+/// Render multiple probes in simple mode.
+pub fn render_simple_compare(results: &[ProbeResult]) -> String {
+    results
+        .iter()
+        .map(render_simple_probe)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
