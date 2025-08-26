@@ -174,7 +174,7 @@ async fn main() {
                                 args.pretty,
                                 args.verbose,
                             );
-                        }
+                      }
                         for r in results {
                             all.entry(r.target.name.clone()).or_default().push(r);
                         }
@@ -228,6 +228,23 @@ async fn main() {
                         let drift = max - min;
                         let _ = term.write_line(&format!("Max avg drift: {:.3} ms", drift));
                     }
+                    Err(e) => {
+                        let code = handle_error(&term, e);
+                        process::exit(code);
+                    }
+                }
+                n += 1;
+                if !args.infinite && n >= args.count {
+                    break;
+                }
+                if args.infinite {
+                    let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+                    tokio::select! {
+                        _ = sleep => {},
+                        _ = signal::ctrl_c() => { break; }
+                    }
+                } else {
+                    tokio::time::sleep(Duration::from_secs(args.interval)).await;
                 }
             }
             0
@@ -356,7 +373,7 @@ async fn main() {
                                 args.pretty,
                                 args.verbose,
                             );
-                        }
+                      }
                         all.push(res);
                     }
                     Err(e) => {
@@ -387,6 +404,11 @@ async fn main() {
                             Ok(s) => println!("{}", s),
                             Err(e) => eprintln!("error serializing: {}", e),
                         }
+                        all.push(res);
+                    }
+                    Err(e) => {
+                        let code = handle_error(&term, e);
+                        process::exit(code);
                     }
                     _ => {
                         let line = fmt::text::render_stats(&all[0].target.name, &stats);
@@ -417,7 +439,6 @@ async fn main() {
                     }
                 }
             }
-
             0
         }
         _ => {

@@ -138,6 +138,7 @@ pub fn render_short_compare(results: &[ProbeResult]) -> String {
                 off = style(format!("{:.3}", r.offset_ms)).yellow()
             )
         })
+==
         .collect::<Vec<_>>()
         .join(" ")
 }
