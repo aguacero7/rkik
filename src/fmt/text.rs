@@ -1,4 +1,5 @@
 use crate::domain::ntp::ProbeResult;
+use crate::stats::Stats;
 use console::style;
 
 /// Render a probe result into human readable text with the legacy style.
@@ -115,4 +116,35 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
     ));
 
     out
+}
+
+/// Render a minimal line for a probe result.
+pub fn render_short_probe(r: &ProbeResult) -> String {
+    format!(
+        "{name} {offset:.3} ms",
+        name = r.target.name,
+        offset = r.offset_ms
+    )
+}
+
+/// Render a minimal line for comparison results.
+pub fn render_short_compare(results: &[ProbeResult]) -> String {
+    results
+        .iter()
+        .map(|r| format!("{name}:{off:.3}", name = r.target.name, off = r.offset_ms))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Render statistics for a set of probe results.
+pub fn render_stats(name: &str, stats: &Stats) -> String {
+    format!(
+        "{name}: avg {avg:.3} ms (min {min:.3}, max {max:.3}) rtt {rtt:.3} ms over {cnt}",
+        name = name,
+        avg = stats.offset_avg,
+        min = stats.offset_min,
+        max = stats.offset_max,
+        rtt = stats.rtt_avg,
+        cnt = stats.count
+    )
 }
