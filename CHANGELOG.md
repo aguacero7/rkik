@@ -34,7 +34,7 @@ pub enum RkikError {
 ```
 
 - JSON integration improved
-We now use serde_json for the format of the JSON output(thanks @lucy_dot_dot), which has changed, making the use of the verbose flag on it actually very useful, you can now use
+We now use serde_json for the format of the JSON output(thanks @lucy-dot-dot), which has changed, making the use of the verbose flag on it actually very useful, you can now use
 ```bash
 rkik -jp time.google.com
 ```
