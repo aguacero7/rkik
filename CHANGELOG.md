@@ -7,6 +7,9 @@
 
 - API Integration
 Everybody can now really use rkik as a library for their projects. The format / output part is now dissociated with the core of the app.
+ 
+- Short Output mode (`-S`)
+  A short output mode has been added displaying only the offset and the IP of the result, for JSON and text. It's the exact same output as the one displayed when using `--count` or `-8`
 
 - --version flag
 You can now display the installed version of rkik using -V or --version.
