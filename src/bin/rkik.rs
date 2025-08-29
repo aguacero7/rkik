@@ -26,7 +26,7 @@ enum OutputFormat {
 #[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")]
 struct Args {
-    /// Query a single NTP server
+    /// Query a single NTP server (optional)
     #[arg(short, long)]
     server: Option<String>,
 
