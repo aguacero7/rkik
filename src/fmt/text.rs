@@ -1,11 +1,11 @@
 use crate::domain::ntp::ProbeResult;
+use crate::stats::Stats;
 use console::style;
 
 /// Render a probe result into human readable text with the legacy style.
 pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
     let ip_version = if r.target.ip.is_ipv6() { "v6" } else { "v4" };
 
-    // bloc principal (strictement identique au rendu legacy)
     let mut out = format!(
         "{srv_lbl} {srv_val}\n\
          {ip_lbl} {ip_val} ({ver})\n\
@@ -28,14 +28,14 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
         rtt_val = r.rtt_ms,
     );
 
-    // bloc verbose : lignes additionnelles Stratum / Reference ID
     if verbose {
         out.push_str(&format!(
-            "\n{str_lbl} {str_val}\n{ref_lbl} {ref_val}",
+            "\n{str_lbl} {str_val}\n{ref_lbl} {ref_val}\n Timestamp: {timestamp}",
             str_lbl = style("Stratum:").cyan().bold(),
             str_val = r.stratum,
             ref_lbl = style("Reference ID:").cyan().bold(),
-            ref_val = r.ref_id
+            ref_val = r.ref_id,
+            timestamp = r.timestamp
         ));
     }
 
@@ -115,4 +115,68 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
     ));
 
     out
+}
+
+/// Render a minimal line for a probe result.
+pub fn render_short_probe(r: &ProbeResult) -> String {
+    format!(
+        "{name} {offset}",
+        name = style(&r.target.name).green(),
+        offset = style(format!("{:.3} ms", r.offset_ms)).yellow()
+    )
+}
+
+/// Render a minimal line for comparison results.
+pub fn render_short_compare(results: &[ProbeResult]) -> String {
+    results
+        .iter()
+        .map(|r| {
+            format!(
+                "{name}:{off}",
+                name = style(&r.target.name).green(),
+                off = style(format!("{:.3}", r.offset_ms)).yellow()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Render statistics for a set of probe results
+pub fn render_stats(name: &str, stats: &Stats) -> String {
+    fn fmt_ms(v: f64) -> String {
+        format!("{:.3} ms", v)
+    }
+
+    format!(
+        "\n{n}: {avg_lbl} {avg} ({min_lbl} {min}, {max_lbl} {max}) {rtt_lbl} {rtt} ({cnt} {rqst})",
+        n = style(name).green().bold(),
+        avg_lbl = style("avg").cyan().bold(),
+        avg = style(fmt_ms(stats.offset_avg)).green(),
+        min_lbl = style("min").cyan().bold(),
+        min = style(fmt_ms(stats.offset_min)).green(),
+        max_lbl = style("max").cyan().bold(),
+        max = style(fmt_ms(stats.offset_max)).green(),
+        rtt_lbl = style("rtt").cyan().bold(),
+        rtt = style(fmt_ms(stats.rtt_avg)).green(),
+        cnt = style(stats.count).green(),
+        rqst = style("requests").green(),
+    )
+}
+
+/// Render a probe in simple mode (offset and IP only).
+pub fn render_simple_probe(r: &ProbeResult) -> String {
+    format!(
+        "{name} {offset}",
+        name = style(&r.target.name).green(),
+        offset = style(format!("{:.3} ms", r.offset_ms)).yellow()
+    )
+}
+
+/// Render multiple probes in simple mode.
+pub fn render_simple_compare(results: &[ProbeResult]) -> String {
+    results
+        .iter()
+        .map(render_simple_probe)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
