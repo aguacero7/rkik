@@ -18,6 +18,7 @@ enum OutputFormat {
     Text,
     Json,
     Simple,
+    JsonShort,
 }
 
 #[derive(Parser, Debug)]
@@ -85,7 +86,6 @@ struct Args {
     /// Specific count of requests
     #[arg(short = 'c', long, default_value_t = 1)]
     count: u32,
-
 }
 
 #[tokio::main]
@@ -96,11 +96,16 @@ async fn main() {
     if args.json {
         args.format = OutputFormat::Json;
     }
+    //alias --short
     if args.short {
         args.format = OutputFormat::Simple;
     }
+    if args.short && args.json {
+        args.format = OutputFormat::JsonShort;
+    }
     // colors
-    let want_color = (matches!(args.format, OutputFormat::Text) ||matches!(args.format, OutputFormat::Simple))
+    let want_color = (matches!(args.format, OutputFormat::Text)
+        || matches!(args.format, OutputFormat::Simple))
         && atty::is(Stream::Stdout)
         && std::env::var_os("NO_COLOR").is_none()
         && !args.no_color;
@@ -118,7 +123,10 @@ async fn main() {
         .ok();
         process::exit(2);
     }
-    if matches!(args.format, OutputFormat::Simple) && args.verbose {
+    if (matches!(args.format, OutputFormat::Simple)
+        || matches!(args.format, OutputFormat::JsonShort))
+        && args.verbose
+    {
         term.write_line(
             &style("--verbose has no effect with short format")
                 .yellow()
@@ -168,8 +176,26 @@ async fn main() {
                         if args.count > 1 || args.infinite {
                             match args.format {
                                 OutputFormat::Text => {
-                                    let line = fmt::text::render_short_compare(&results);
-                                    term.write_line(&line).ok();
+                                    if args.verbose {
+                                        output(
+                                            &term,
+                                            &results,
+                                            OutputFormat::Text,
+                                            args.pretty,
+                                            true,
+                                        );
+                                    } else {
+                                        let line = fmt::text::render_short_compare(&results);
+                                        term.write_line(&line).ok();
+                                    }
+                                }
+                                OutputFormat::JsonShort => {
+                                    for r in &results {
+                                        match fmt::json::probe_to_short_json(r) {
+                                            Ok(s) => println!("{}", s),
+                                            Err(e) => eprintln!("error serializing: {}", e),
+                                        }
+                                    }
                                 }
                                 _ => {
                                     output(
@@ -280,9 +306,24 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
                     let format = args.format.clone();
                     match format {
                         OutputFormat::Text => {
-                            let line = fmt::text::render_short_probe(&res);
-                            term.write_line(&line).ok();
+                            if args.verbose {
+                                output(
+                                    term,
+                                    std::slice::from_ref(&res),
+                                    OutputFormat::Text,
+                                    args.pretty,
+                                    true,
+                                );
+                            } else {
+                                let line = fmt::text::render_short_probe(&res);
+                                term.write_line(&line).ok();
+                            }
                         }
+                        OutputFormat::JsonShort => match fmt::json::probe_to_short_json(&res) {
+                            Ok(s) => println!("{}", s),
+                            Err(e) => eprintln!("error serializing: {}", e),
+                        },
+
                         _ => {
                             output(
                                 term,
@@ -377,6 +418,10 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
             }
         }
         OutputFormat::Json => match fmt::json::to_json(results, pretty, verbose) {
+            Ok(s) => println!("{}", s),
+            Err(e) => eprintln!("error serializing: {}", e),
+        },
+        OutputFormat::JsonShort => match fmt::json::to_short_json(results, pretty) {
             Ok(s) => println!("{}", s),
             Err(e) => eprintln!("error serializing: {}", e),
         },

@@ -19,6 +19,7 @@ pub struct JsonProbe {
     pub ref_id: Option<String>,
     pub utc: String,
     pub local: String,
+    pub timestamp: Option<i64>,
 }
 
 #[cfg(feature = "json")]
@@ -49,6 +50,7 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
                 } else {
                     None
                 },
+                timestamp: if verbose { Some(r.timestamp) } else { None },
             })
             .collect();
 
@@ -76,9 +78,9 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
 
 #[cfg(feature = "json")]
 #[derive(Serialize)]
-struct JsonSimpleProbe {
-    utc: String,
-    ip: String,
+pub struct JsonSimpleProbe {
+    pub utc: String,
+    pub ip: String,
 }
 
 #[cfg(feature = "json")]
@@ -200,6 +202,49 @@ pub fn stats_to_json(name: &str, stats: &Stats, pretty: bool) -> Result<String, 
         let _ = name;
         let _ = stats;
         let _ = pretty;
+        Err(RkikError::Other("json feature disabled".into()))
+    }
+}
+
+/// Serialize a single probe into a compact one-line JSON string (no envelope).
+pub fn probe_to_short_json(r: &ProbeResult) -> Result<String, RkikError> {
+    #[cfg(feature = "json")]
+    {
+        let p = JsonSimpleProbe {
+            utc: r.utc.to_rfc3339(),
+            ip: r.target.ip.to_string(),
+        };
+        let s = serde_json::to_string(&p)
+            .map_err(|e| RkikError::Other(format!("json encode: {}", e)))?;
+        Ok(s)
+    }
+    #[cfg(not(feature = "json"))]
+    {
+        Err(RkikError::Other("json feature disabled".into()))
+    }
+}
+
+/// Serialize a list of probes into a compact JSON array (no envelope).
+pub fn to_short_json(results: &[ProbeResult], pretty: bool) -> Result<String, RkikError> {
+    #[cfg(feature = "json")]
+    {
+        let items: Vec<JsonSimpleProbe> = results
+            .iter()
+            .map(|r| JsonSimpleProbe {
+                utc: r.utc.to_rfc3339(),
+                ip: r.target.ip.to_string(),
+            })
+            .collect();
+        if pretty {
+            serde_json::to_string_pretty(&items)
+                .map_err(|e| RkikError::Other(format!("json encode: {}", e)))
+        } else {
+            serde_json::to_string(&items)
+                .map_err(|e| RkikError::Other(format!("json encode: {}", e)))
+        }
+    }
+    #[cfg(not(feature = "json"))]
+    {
         Err(RkikError::Other("json feature disabled".into()))
     }
 }
