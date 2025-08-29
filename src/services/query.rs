@@ -25,6 +25,7 @@ pub async fn query_one(
     let rtt_ms = res.round_trip_delay().as_secs_f64() * 1000.0;
     let stratum = res.stratum();
     let ref_id = format_reference_id(res.reference_identifier());
+    let timestamp = utc.timestamp();
     Ok(ProbeResult {
         target: Target {
             name: target.to_string(),
@@ -36,6 +37,7 @@ pub async fn query_one(
         ref_id,
         utc,
         local,
+        timestamp,
     })
 }
 

@@ -89,15 +89,20 @@ Round Trip Delay: 2.320 ms
 **JSON:**
 ```json
 {
-  "server": "time.google.com",
-  "ip": "216.239.35.0",
-  "utc_time": "2024-05-27T13:45:00Z",
-  "local_time": "2024-05-27 15:45:00",
-  "offset_ms": -1.203,
-  "rtt_ms": 2.320,
-  "stratum": 1,
-  "reference_id": "GOOG"
+  "schema_version": 1,
+  "run_ts": "2025-08-25T15:40:43.774174713+00:00",
+  "results": [
+    {
+      "name": "time.google.com",
+      "ip": "216.239.35.8",
+      "offset_ms": 0.16905309166759253,
+      "rtt_ms": 12.1621775906533,
+      "utc": "2025-08-25T15:40:43.774244589+00:00",
+      "local": "2025-08-25 17:40:43"
+    }
+  ]
 }
+
 ```
 
 ---

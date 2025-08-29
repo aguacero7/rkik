@@ -23,4 +23,5 @@ pub struct ProbeResult {
     pub ref_id: String,
     pub utc: DateTime<Utc>,
     pub local: DateTime<Local>,
+    pub timestamp: i64, // Unix timestamp
 }

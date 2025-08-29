@@ -5,13 +5,20 @@ use console::{Term, set_colors_enabled, style};
 use rkik::sync::{SyncError, sync_from_probe};
 use std::process;
 use std::time::Duration;
+use tokio::signal;
 
-use rkik::{ProbeResult, RkikError, compare_many, fmt, query_one};
+use rkik::{
+    ProbeResult, RkikError, compare_many, fmt, query_one,
+    stats::{Stats, compute_stats},
+};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, ValueEnum)]
 enum OutputFormat {
     Text,
     Json,
+    Simple,
+    JsonShort,
 }
 
 #[derive(Parser, Debug)]
@@ -32,15 +39,19 @@ struct Args {
     pub verbose: bool,
 
     /// Output format: text or json
-    #[arg(short, long, default_value = "text", value_enum)]
+    #[arg(short = 'f', long, default_value = "text", value_enum)]
     format: OutputFormat,
 
     /// Alias for JSON output
-    #[arg(long)]
+    #[arg(short = 'j', long)]
     json: bool,
 
+    /// Alias for simple / short text output
+    #[arg(short = 'S', long)]
+    short: bool,
+
     /// Pretty-print JSON
-    #[arg(long)]
+    #[arg(short = 'p', long)]
     pretty: bool,
 
     /// Disable colored output
@@ -63,6 +74,18 @@ struct Args {
     /// Positional server name or IP
     #[arg(index = 1)]
     positional: Option<String>,
+
+    /// Infinite count mode
+    #[arg(short = '8', long)]
+    infinite: bool,
+
+    /// Interval between queries in seconds (only with --infinite or --count)
+    #[arg(short = 'i', long, default_value_t = 1)]
+    interval: u64,
+
+    /// Specific count of requests
+    #[arg(short = 'c', long, default_value_t = 1)]
+    count: u32,
 }
 
 #[tokio::main]
@@ -73,9 +96,16 @@ async fn main() {
     if args.json {
         args.format = OutputFormat::Json;
     }
-
+    //alias --short
+    if args.short {
+        args.format = OutputFormat::Simple;
+    }
+    if args.short && args.json {
+        args.format = OutputFormat::JsonShort;
+    }
     // colors
-    let want_color = matches!(args.format, OutputFormat::Text)
+    let want_color = (matches!(args.format, OutputFormat::Text)
+        || matches!(args.format, OutputFormat::Simple))
         && atty::is(Stream::Stdout)
         && std::env::var_os("NO_COLOR").is_none()
         && !args.no_color;
@@ -83,6 +113,46 @@ async fn main() {
 
     let term = Term::stdout();
     let timeout = Duration::from_secs(args.timeout);
+
+    if args.infinite && args.count != 1 {
+        term.write_line(
+            &style("--infinite cannot be used with --count")
+                .red()
+                .to_string(),
+        )
+        .ok();
+        process::exit(2);
+    }
+    if (matches!(args.format, OutputFormat::Simple)
+        || matches!(args.format, OutputFormat::JsonShort))
+        && args.verbose
+    {
+        term.write_line(
+            &style("--verbose has no effect with short format")
+                .yellow()
+                .to_string(),
+        )
+        .ok();
+    }
+    if args.interval != 1 && !args.infinite && args.count == 1 {
+        term.write_line(
+            &style("--interval requires --infinite or --count")
+                .red()
+                .to_string(),
+        )
+        .ok();
+        process::exit(2);
+    }
+    #[cfg(feature = "sync")]
+    if args.infinite && args.sync {
+        term.write_line(
+            &style("--sync cannot be used with --infinite")
+                .red()
+                .to_string(),
+        )
+        .ok();
+        process::exit(2);
+    }
 
     // refuse --sync with --compare
     #[cfg(feature = "sync")]
@@ -97,91 +167,120 @@ async fn main() {
     }
 
     let exit_code = match (&args.compare, &args.server, &args.positional) {
-        (Some(list), _, _) => match compare_many(list, args.ipv6, timeout).await {
-            Ok(results) => {
-                output(
-                    &term,
-                    &results,
-                    args.format.clone(),
-                    args.pretty,
-                    args.verbose,
-                );
-                0
-            }
-            Err(e) => handle_error(&term, e),
-        },
-        (_, Some(server), _) => match query_one(server, args.ipv6, timeout).await {
-            Ok(res) => {
-                output(
-                    &term,
-                    std::slice::from_ref(&res),
-                    args.format.clone(),
-                    args.pretty,
-                    args.verbose,
-                );
-
-                #[cfg(feature = "sync")]
-                if args.sync {
-                    match sync_from_probe(&res) {
-                        Ok(()) => {
-                            let _ = term.write_line(&style("Sync applied").green().to_string());
+        (Some(list), _, _) => {
+            let mut all: HashMap<String, Vec<ProbeResult>> = HashMap::new();
+            let mut n = 0u32;
+            loop {
+                match compare_many(list, args.ipv6, timeout).await {
+                    Ok(results) => {
+                        if args.count > 1 || args.infinite {
+                            match args.format {
+                                OutputFormat::Text => {
+                                    if args.verbose {
+                                        output(
+                                            &term,
+                                            &results,
+                                            OutputFormat::Text,
+                                            args.pretty,
+                                            true,
+                                        );
+                                    } else {
+                                        let line = fmt::text::render_short_compare(&results);
+                                        term.write_line(&line).ok();
+                                    }
+                                }
+                                OutputFormat::JsonShort => {
+                                    for r in &results {
+                                        match fmt::json::probe_to_short_json(r) {
+                                            Ok(s) => println!("{}", s),
+                                            Err(e) => eprintln!("error serializing: {}", e),
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    output(
+                                        &term,
+                                        &results,
+                                        args.format.clone(),
+                                        args.pretty,
+                                        args.verbose,
+                                    );
+                                }
+                            }
+                        } else {
+                            output(
+                                &term,
+                                &results,
+                                args.format.clone(),
+                                args.pretty,
+                                args.verbose,
+                            );
                         }
-                        Err(SyncError::Permission(e)) => {
-                            term.write_line(&format!("Error: {}", e)).ok();
-                            process::exit(12);
-                        }
-                        Err(SyncError::Sys(e)) => {
-                            term.write_line(&format!("Error: {}", e)).ok();
-                            process::exit(14);
-                        }
-                        Err(SyncError::NotSupported) => {
-                            term.write_line("Error: sync not supported on this platform")
-                                .ok();
-                            process::exit(15);
-                        }
-                    }
-                }
-
-                0
-            }
-            Err(e) => handle_error(&term, e),
-        },
-        (_, None, Some(pos)) => match query_one(pos, args.ipv6, timeout).await {
-            Ok(res) => {
-                output(
-                    &term,
-                    std::slice::from_ref(&res),
-                    args.format.clone(),
-                    args.pretty,
-                    args.verbose,
-                );
-
-                #[cfg(feature = "sync")]
-                if args.sync {
-                    match sync_from_probe(&res) {
-                        Ok(()) => {
-                            let _ = term.write_line(&style("Sync applied").green().to_string());
-                        }
-                        Err(SyncError::Permission(e)) => {
-                            term.write_line(&format!("Error: {}", e)).ok();
-                            process::exit(12);
-                        }
-                        Err(SyncError::Sys(e)) => {
-                            term.write_line(&format!("Error: {}", e)).ok();
-                            process::exit(14);
-                        }
-                        Err(SyncError::NotSupported) => {
-                            term.write_line("Error: sync not supported on this platform")
-                                .ok();
-                            process::exit(15);
+                        for r in results {
+                            all.entry(r.target.name.clone()).or_default().push(r);
                         }
                     }
+                    Err(e) => {
+                        let code = handle_error(&term, e);
+                        process::exit(code);
+                    }
                 }
-
-                0
+                n += 1;
+                if !args.infinite && n >= args.count {
+                    break;
+                }
+                if args.infinite {
+                    let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+                    tokio::select! {
+                        _ = sleep => {},
+                        _ = signal::ctrl_c() => { break; }
+                    }
+                } else {
+                    tokio::time::sleep(Duration::from_secs(args.interval)).await;
+                }
             }
-            Err(e) => handle_error(&term, e),
-        },
+
+            if all.values().map(|v| v.len()).sum::<usize>() > list.len() {
+                let mut stats_list: Vec<(String, Stats)> = all
+                    .into_iter()
+                    .map(|(name, vals)| (name, compute_stats(&vals)))
+                    .collect();
+                stats_list.sort_by(|a, b| a.0.cmp(&b.0));
+                match args.format {
+                    OutputFormat::Json => {
+                        match fmt::json::stats_list_to_json(&stats_list, args.pretty) {
+                            Ok(s) => println!("{}", s),
+                            Err(e) => eprintln!("error serializing: {}", e),
+                        }
+                    }
+                    _ => {
+                        for (name, st) in &stats_list {
+                            let line = fmt::text::render_stats(name, st);
+                            term.write_line(&line).ok();
+                        }
+                        let min = stats_list
+                            .iter()
+                            .map(|(_, s)| s.offset_avg)
+                            .fold(f64::INFINITY, f64::min);
+                        let max = stats_list
+                            .iter()
+                            .map(|(_, s)| s.offset_avg)
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        let drift = max - min;
+                        let _ = term.write_line(&format!("Max avg drift: {:.3} ms", drift));
+                    }
+                }
+            }
+            0
+        }
+        (_, Some(server), _) => {
+            query_loop(server, &args, &term, timeout).await;
+            0
+        }
+        (_, None, Some(pos)) => {
+            query_loop(pos, &args, &term, timeout).await;
+            0
+        }
         _ => {
             term.write_line(
                 &style("Error: Provide either a server, a positional argument, or --compare")
@@ -197,6 +296,116 @@ async fn main() {
     process::exit(exit_code);
 }
 
+async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
+    let mut all = Vec::new();
+    let mut n = 0u32;
+    loop {
+        match query_one(target, args.ipv6, timeout).await {
+            Ok(res) => {
+                if args.count > 1 || args.infinite {
+                    let format = args.format.clone();
+                    match format {
+                        OutputFormat::Text => {
+                            if args.verbose {
+                                output(
+                                    term,
+                                    std::slice::from_ref(&res),
+                                    OutputFormat::Text,
+                                    args.pretty,
+                                    true,
+                                );
+                            } else {
+                                let line = fmt::text::render_short_probe(&res);
+                                term.write_line(&line).ok();
+                            }
+                        }
+                        OutputFormat::JsonShort => match fmt::json::probe_to_short_json(&res) {
+                            Ok(s) => println!("{}", s),
+                            Err(e) => eprintln!("error serializing: {}", e),
+                        },
+
+                        _ => {
+                            output(
+                                term,
+                                std::slice::from_ref(&res),
+                                format,
+                                args.pretty,
+                                args.verbose,
+                            );
+                        }
+                    }
+                } else {
+                    output(
+                        term,
+                        std::slice::from_ref(&res),
+                        args.format.clone(),
+                        args.pretty,
+                        args.verbose,
+                    );
+                }
+                all.push(res);
+            }
+            Err(e) => {
+                let code = handle_error(term, e);
+                process::exit(code);
+            }
+        }
+        n += 1;
+        if !args.infinite && n >= args.count {
+            break;
+        }
+        if args.infinite {
+            let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+            tokio::select! {
+                _ = sleep => {},
+                _ = signal::ctrl_c() => { break; }
+            }
+        } else {
+            tokio::time::sleep(Duration::from_secs(args.interval)).await;
+        }
+    }
+
+    if all.len() > 1 {
+        let stats = compute_stats(&all);
+        let format = args.format.clone();
+        match format {
+            OutputFormat::Json => {
+                match fmt::json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
+                    Ok(s) => println!("{}", s),
+                    Err(e) => eprintln!("error serializing: {}", e),
+                }
+            }
+            _ => {
+                let line = fmt::text::render_stats(&all[0].target.name, &stats);
+                term.write_line(&line).ok();
+            }
+        }
+    }
+
+    #[cfg(feature = "sync")]
+    if args.sync {
+        let probe = average_probe(&all);
+        match sync_from_probe(&probe) {
+            Ok(()) => {
+                let _ = term.write_line(&style("Sync applied").green().to_string());
+            }
+            Err(SyncError::Permission(e)) => {
+                term.write_line(&format!("Error: {}", e)).ok();
+                process::exit(12);
+            }
+            Err(SyncError::Sys(e)) => {
+                term.write_line(&format!("Error: {}", e)).ok();
+                process::exit(14);
+            }
+            Err(SyncError::NotSupported) => {
+                term.write_line("Error: sync not supported on this platform")
+                    .ok();
+                process::exit(15);
+            }
+        }
+    }
+}
+
 fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool, verbose: bool) {
     match fmt {
         OutputFormat::Text => {
@@ -208,10 +417,23 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
                 term.write_line(&s).ok();
             }
         }
-        OutputFormat::Json => match fmt::json::to_json(results, pretty) {
+        OutputFormat::Json => match fmt::json::to_json(results, pretty, verbose) {
             Ok(s) => println!("{}", s),
             Err(e) => eprintln!("error serializing: {}", e),
         },
+        OutputFormat::JsonShort => match fmt::json::to_short_json(results, pretty) {
+            Ok(s) => println!("{}", s),
+            Err(e) => eprintln!("error serializing: {}", e),
+        },
+        OutputFormat::Simple => {
+            if results.len() == 1 {
+                let s = fmt::text::render_simple_probe(&results[0]);
+                term.write_line(&s).ok();
+            } else {
+                let s = fmt::text::render_simple_compare(results);
+                term.write_line(&s).ok();
+            }
+        }
     }
 }
 
@@ -223,4 +445,15 @@ fn handle_error(term: &Term, err: RkikError) -> i32 {
         RkikError::Network(ref s) if s == "timeout" => 3,
         _ => 1,
     }
+}
+
+#[cfg(feature = "sync")]
+fn average_probe(results: &[ProbeResult]) -> ProbeResult {
+    let mut avg = results.last().cloned().unwrap();
+    avg.offset_ms = results.iter().map(|r| r.offset_ms).sum::<f64>() / results.len() as f64;
+    avg.rtt_ms = results.iter().map(|r| r.rtt_ms).sum::<f64>() / results.len() as f64;
+    if let Some(min_stratum) = results.iter().map(|r| r.stratum).min() {
+        avg.stratum = min_stratum;
+    }
+    avg
 }
