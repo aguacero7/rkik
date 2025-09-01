@@ -57,6 +57,9 @@ To display a pretty json output.
 }
 ```
 
+- `--json` or `-j` flag
+ We have added an alias to the `--format json` flag to make it simpler to ask for a json output. You can combine it with `--pretty` or `-p` for a prettier output.
+
 - no color format integration
 We've added the `--nocolor` arg for the output to not be stylized, otherwise, il will always be if your terminal can handle it.
 
