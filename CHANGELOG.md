@@ -64,5 +64,37 @@ We've added the `--nocolor` arg for the output to not be stylized, otherwise, il
 You can now use `--format simple` or `-S` / `--short` to display a minimalist output with only the time of the requested server and its IP address.
 
 ## Latest version v0.6.1
+### Minor changes
 - `--version` flag to display installed rkik's version
 You can now display the installed version of rkik using -V or --version.
+
+## Version v0.6.0
+### Async Comparison Mode
+
+The --compare flag now supports comparing 2 or more NTP servers in parallel, powered by tokio. This results in significantly improved performance and better scalability for auditing drift across multiple time sources.
+
+```bash
+rkik --compare time.google.com time.cloudflare.com 0.pool.ntp.org
+```
+- Async Foundation for Future Use Cases
+The asynchronous implementation is now a clean foundation for future monitoring, scheduling, or background tasks using tokio.
+
+- Dynamic Server Count in --compare
+No longer limited to 2 servers — the comparison now accepts up to 10 servers and returns a comprehensive view of offsets and drift.
+
+- Improved CLI Argument Parsing
+The --compare flag uses num_args = 2..10, enabling natural and flexible command-line usage.
+
+### Improvements
+- Full refactor of compare_servers into async logic with join_all.
+- Better error reporting during comparison phase (resolvable vs. unreachable servers).
+- Refactored architecture to cleanly separate sync and async code paths.
+- CLI gracefully switches between sync and async depending on operation mode.
+
+
+### CLI Ergonomics
+Short flags added for faster interaction:
+`-C = --compare`
+`-v = --verbose`
+`-6 = --ipv6`
+`-s = --server`
