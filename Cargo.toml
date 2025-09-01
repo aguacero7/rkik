@@ -41,7 +41,6 @@ serde_json = { version = "1.0", optional = true }
 thiserror = "1"
 tracing = "0.1"
 libc = { version = "0.2", optional = true }
-atty = "0.2.14"
 
 [dev-dependencies]
 assert_cmd = "2.0"
