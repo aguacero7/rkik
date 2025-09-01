@@ -1,6 +1,6 @@
 [package]
 name = "rkik"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2024"
 description = "Rusty Klock Inspection Kit - NTP Query and Compare Tool"
 authors = ["Aguacero7 <naps@teamnaps.fr>"]

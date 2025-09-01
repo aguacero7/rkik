@@ -11,6 +11,7 @@ use std::process;
 
 #[derive(Parser, Debug)]
 #[command(name = "rkik")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")]
 #[command(long_about = Some(
     "Query and compare NTP servers from the CLI.\n\
