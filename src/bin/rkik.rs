@@ -1,8 +1,8 @@
-use std::io::{self, IsTerminal};
 use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
 use rkik::sync::{SyncError, sync_from_probe};
+use std::io::{self, IsTerminal};
 use std::process;
 use std::time::Duration;
 use tokio::signal;
