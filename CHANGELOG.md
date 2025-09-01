@@ -11,8 +11,6 @@ Everybody can now really use rkik as a library for their projects. The format / 
 - Short Output mode (`-S`)
   A short output mode has been added displaying only the offset and the IP of the result, for JSON and text. It's the exact same output as the one displayed when using `--count` or `-8`
 
-- --version flag
-You can now display the installed version of rkik using -V or --version.
 
 - More detailled errors 
 Errors output is now more detailed, more precise and prettier. It follows this RkikError enuum
@@ -65,4 +63,6 @@ We've added the `--nocolor` arg for the output to not be stylized, otherwise, il
 - Short output format
 You can now use `--format simple` or `-S` / `--short` to display a minimalist output with only the time of the requested server and its IP address.
 
-## Latest version v0.6.0
+## Latest version v0.6.1
+- `--version` flag to display installed rkik's version
+You can now display the installed version of rkik using -V or --version.
