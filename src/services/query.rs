@@ -13,10 +13,9 @@ pub async fn query_one(
     target: &str,
     ipv6_only: bool,
     timeout: Duration,
-    port: i8
 ) -> Result<ProbeResult, RkikError> {
     let ip = resolver::resolve_ip(target, ipv6_only)?;
-    let res = ntp_client::query(ip, ipv6_only, timeout,port).await?;
+    let res = ntp_client::query(ip, ipv6_only, timeout).await?;
     let utc: DateTime<Utc> = match res.datetime().try_into() {
         Ok(dt) => dt,
         Err(e) => return Err(RkikError::Other(e.to_string())),
