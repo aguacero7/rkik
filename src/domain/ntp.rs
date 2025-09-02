@@ -10,6 +10,7 @@ use serde::Serialize;
 pub struct Target {
     pub name: String,
     pub ip: IpAddr,
+    pub port: i16
 }
 
 /// Result of probing an NTP server.

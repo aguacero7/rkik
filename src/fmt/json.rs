@@ -11,6 +11,7 @@ use crate::stats::Stats;
 pub struct JsonProbe {
     pub name: String,
     pub ip: String,
+    pub port: i16,
     pub offset_ms: f64,
     pub rtt_ms: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -40,6 +41,7 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
             .map(|r| JsonProbe {
                 name: r.target.name.clone(),
                 ip: r.target.ip.to_string(),
+                port: r.target.port,
                 offset_ms: r.offset_ms,
                 rtt_ms: r.rtt_ms,
                 utc: r.utc.to_rfc3339(),
@@ -80,7 +82,8 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
 #[derive(Serialize)]
 pub struct JsonSimpleProbe {
     pub utc: String,
-    pub ip: String,
+    pub name: String,
+    pub port: i16,
 }
 
 #[cfg(feature = "json")]
@@ -100,7 +103,8 @@ pub fn simple_to_json(results: &[ProbeResult], pretty: bool) -> Result<String, R
             .iter()
             .map(|r| JsonSimpleProbe {
                 utc: r.utc.to_rfc3339(),
-                ip: r.target.ip.to_string(),
+                name: r.target.name,
+                port: r.target.port
             })
             .collect();
 

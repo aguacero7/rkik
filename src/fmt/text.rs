@@ -8,7 +8,7 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
 
     let mut out = format!(
         "{srv_lbl} {srv_val}\n\
-         {ip_lbl} {ip_val} ({ver})\n\
+         {ip_lbl} {ip_val}:{port}\n\
          {utc_lbl} {utc_val}\n\
          {loc_lbl} {loc_val}\n\
          {off_lbl} {off_val:.3} ms\n\
@@ -17,7 +17,7 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
         srv_val = style(&r.target.name).green(),
         ip_lbl = style("IP:").cyan().bold(),
         ip_val = style(r.target.ip).green(),
-        ver = ip_version,
+        port = style(r.target.port).green(),
         utc_lbl = style("UTC Time:").cyan().bold(),
         utc_val = style(r.utc.to_rfc2822()).green(),
         loc_lbl = style("Local Time:").cyan().bold(),
@@ -49,10 +49,13 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
     // Header
     if results.len() == 2 {
         out.push_str(&format!(
-            "{} {} and {}\n",
+            "{}:{} {}:{} and {}\n",
             style("Comparing").bold(),
             style(&results[0].target.name).green(),
-            style(&results[1].target.name).green()
+            style(&results[0].target.port).green(),
+            style(&results[1].target.name).green(),
+            style(&results[1].target.port).green()
+
         ));
     } else {
         out.push_str(&format!(
@@ -120,8 +123,9 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
 /// Render a minimal line for a probe result.
 pub fn render_short_probe(r: &ProbeResult) -> String {
     format!(
-        "{name} {offset}",
+        "{name}:{port} {offset}",
         name = style(&r.target.name).green(),
+        port = r.target.port,
         offset = style(format!("{:.3} ms", r.offset_ms)).yellow()
     )
 }
@@ -132,8 +136,9 @@ pub fn render_short_compare(results: &[ProbeResult]) -> String {
         .iter()
         .map(|r| {
             format!(
-                "{name}:{off}",
+                "{name}:{port}:{off}",
                 name = style(&r.target.name).green(),
+                port = r.target.port,
                 off = style(format!("{:.3}", r.offset_ms)).yellow()
             )
         })
@@ -166,8 +171,9 @@ pub fn render_stats(name: &str, stats: &Stats) -> String {
 /// Render a probe in simple mode (offset and IP only).
 pub fn render_simple_probe(r: &ProbeResult) -> String {
     format!(
-        "{name} {offset}",
+        "{name}:{port} {offset}",
         name = style(&r.target.name).green(),
+        port=  style(&r.target.port).green(),
         offset = style(format!("{:.3} ms", r.offset_ms)).yellow()
     )
 }
