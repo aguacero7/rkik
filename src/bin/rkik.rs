@@ -65,6 +65,10 @@ struct Args {
     /// Timeout in seconds
     #[arg(long, default_value_t = 5)]
     timeout: u64,
+    
+    /// Specify a port to connect
+    #[arg[short='p',long, default_value_t = 123]]
+    port : i8,
 
     /// Enable one-shot system clock synchronization (requires root)
     #[cfg(feature = "sync")]
@@ -300,7 +304,7 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
     let mut all = Vec::new();
     let mut n = 0u32;
     loop {
-        match query_one(target, args.ipv6, timeout).await {
+        match query_one(target, args.ipv6, timeout, args.port).await {
             Ok(res) => {
                 if args.count > 1 || args.infinite {
                     let format = args.format.clone();
