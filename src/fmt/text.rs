@@ -4,8 +4,13 @@ use console::style;
 
 /// Render a probe result into human readable text with the legacy style.
 pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
-    let ip_version = if r.target.ip.is_ipv6() { "v6" } else { "v4" };
-
+    let ip_val = if r.target.ip.is_ipv6() {
+        // [ipv6] in green
+        format!("{}", style(format!("[{}]", r.target.ip)).green())
+    } else {
+        // ipv4/hostname in green
+        format!("{}", style(r.target.ip).green())
+    };
     let mut out = format!(
         "{srv_lbl} {srv_val}\n\
          {ip_lbl} {ip_val}:{port}\n\
@@ -16,7 +21,7 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
         srv_lbl = style("Server:").cyan().bold(),
         srv_val = style(&r.target.name).green(),
         ip_lbl = style("IP:").cyan().bold(),
-        ip_val = style(r.target.ip).green(),
+        ip_val = ip_val,
         port = style(r.target.port).green(),
         utc_lbl = style("UTC Time:").cyan().bold(),
         utc_val = style(r.utc.to_rfc2822()).green(),

@@ -11,7 +11,7 @@ use crate::stats::Stats;
 pub struct JsonProbe {
     pub name: String,
     pub ip: String,
-    pub port: i16,
+    pub port: u16,
     pub offset_ms: f64,
     pub rtt_ms: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,7 +83,7 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
 pub struct JsonSimpleProbe {
     pub utc: String,
     pub name: String,
-    pub port: i16,
+    pub port: u16,
 }
 
 #[cfg(feature = "json")]
@@ -103,7 +103,7 @@ pub fn simple_to_json(results: &[ProbeResult], pretty: bool) -> Result<String, R
             .iter()
             .map(|r| JsonSimpleProbe {
                 utc: r.utc.to_rfc3339(),
-                name: r.target.name,
+                name: r.target.name.clone(),
                 port: r.target.port
             })
             .collect();
@@ -216,7 +216,8 @@ pub fn probe_to_short_json(r: &ProbeResult) -> Result<String, RkikError> {
     {
         let p = JsonSimpleProbe {
             utc: r.utc.to_rfc3339(),
-            ip: r.target.ip.to_string(),
+            name: r.target.name.clone(),
+            port : r.target.port
         };
         let s = serde_json::to_string(&p)
             .map_err(|e| RkikError::Other(format!("json encode: {}", e)))?;
@@ -236,7 +237,8 @@ pub fn to_short_json(results: &[ProbeResult], pretty: bool) -> Result<String, Rk
             .iter()
             .map(|r| JsonSimpleProbe {
                 utc: r.utc.to_rfc3339(),
-                ip: r.target.ip.to_string(),
+                name: r.target.name.clone(),
+                port: r.target.port,
             })
             .collect();
         if pretty {

@@ -10,7 +10,7 @@ pub async fn query(
     ip: IpAddr,
     ipv6: bool,
     timeout: Duration,
-    port: i16,
+    port: u16,
 ) -> Result<SynchronizationResult, RkikError> {
     let cfg = if ipv6 {
         Config::default().bind_address((Ipv6Addr::UNSPECIFIED, 0).into())

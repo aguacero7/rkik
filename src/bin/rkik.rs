@@ -1,4 +1,4 @@
-use atty::Stream;
+use std::io::{self, IsTerminal};
 use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
@@ -106,7 +106,7 @@ async fn main() {
     // colors
     let want_color = (matches!(args.format, OutputFormat::Text)
         || matches!(args.format, OutputFormat::Simple))
-        && atty::is(Stream::Stdout)
+        && io::stdout().is_terminal()
         && std::env::var_os("NO_COLOR").is_none()
         && !args.no_color;
     set_colors_enabled(want_color);
