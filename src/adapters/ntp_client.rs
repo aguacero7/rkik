@@ -19,7 +19,7 @@ pub async fn query(
     };
     let client = AsyncSntpClient::with_config(cfg);
     // rsntp does not expose explicit timeout; rely on tokio timeout
-    let addr = format!("{}:{}", ip,port);
+    let addr = format!("{}:{}", ip, port);
     let fut = client.synchronize(addr);
     let res = tokio::time::timeout(timeout, fut)
         .await

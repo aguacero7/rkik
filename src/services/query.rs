@@ -20,7 +20,9 @@ pub struct ParsedTarget<'a> {
 fn parse_port_strict(s: &str) -> Result<u16, RkikError> {
     let raw = u32::from_str(s).map_err(|_| RkikError::Other(format!("invalid port: '{s}'")))?;
     if raw == 0 || raw > u16::MAX as u32 {
-        return Err(RkikError::Other(format!("port out of range [1..65535]: {raw}")));
+        return Err(RkikError::Other(format!(
+            "port out of range [1..65535]: {raw}"
+        )));
     }
     Ok(raw as u16)
 }
@@ -60,8 +62,8 @@ pub fn parse_target(input: &str) -> Result<ParsedTarget<'_>, RkikError> {
         let Some(bracket_pos) = rest.find(']') else {
             return Err(RkikError::Other(format!("missing closing ']' in '{s}'")));
         };
-        let host = &rest[..bracket_pos];             // inside brackets (IPv6 literal)
-        let tail = &rest[bracket_pos + 1..];         // after ']'
+        let host = &rest[..bracket_pos]; // inside brackets (IPv6 literal)
+        let tail = &rest[bracket_pos + 1..]; // after ']'
 
         // Optional ":port" after the bracket
         let port = if let Some(p) = tail.strip_prefix(':') {
@@ -69,7 +71,9 @@ pub fn parse_target(input: &str) -> Result<ParsedTarget<'_>, RkikError> {
         } else if tail.is_empty() {
             None
         } else {
-            return Err(RkikError::Other(format!("unexpected trailing characters in '{s}'")));
+            return Err(RkikError::Other(format!(
+                "unexpected trailing characters in '{s}'"
+            )));
         };
 
         return Ok(ParsedTarget {
@@ -94,7 +98,9 @@ pub fn parse_target(input: &str) -> Result<ParsedTarget<'_>, RkikError> {
             let port_str = it.next().unwrap();
             let host = it.next().unwrap_or("");
             if host.is_empty() {
-                return Err(RkikError::Other(format!("missing host before port in '{s}'")));
+                return Err(RkikError::Other(format!(
+                    "missing host before port in '{s}'"
+                )));
             }
             let port = parse_port_strict(port_str)?;
             Ok(ParsedTarget {

@@ -60,7 +60,6 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
             style(&results[0].target.port).green(),
             style(&results[1].target.name).green(),
             style(&results[1].target.port).green()
-
         ));
     } else {
         out.push_str(&format!(
@@ -178,7 +177,7 @@ pub fn render_simple_probe(r: &ProbeResult) -> String {
     format!(
         "{name}:{port} {offset}",
         name = style(&r.target.name).green(),
-        port=  style(&r.target.port).green(),
+        port = style(&r.target.port).green(),
         offset = style(format!("{:.3} ms", r.offset_ms)).yellow()
     )
 }

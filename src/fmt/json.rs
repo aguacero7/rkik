@@ -104,7 +104,7 @@ pub fn simple_to_json(results: &[ProbeResult], pretty: bool) -> Result<String, R
             .map(|r| JsonSimpleProbe {
                 utc: r.utc.to_rfc3339(),
                 name: r.target.name.clone(),
-                port: r.target.port
+                port: r.target.port,
             })
             .collect();
 
@@ -217,7 +217,7 @@ pub fn probe_to_short_json(r: &ProbeResult) -> Result<String, RkikError> {
         let p = JsonSimpleProbe {
             utc: r.utc.to_rfc3339(),
             name: r.target.name.clone(),
-            port : r.target.port
+            port: r.target.port,
         };
         let s = serde_json::to_string(&p)
             .map_err(|e| RkikError::Other(format!("json encode: {}", e)))?;

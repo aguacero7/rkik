@@ -1,5 +1,5 @@
+use rkik::{ProbeResult, parse_target};
 use std::time::Duration;
-use rkik::{parse_target, ProbeResult};
 
 #[tokio::test]
 async fn test_query_invalid_host() {
