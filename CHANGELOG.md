@@ -1,6 +1,12 @@
 # RKIK - Changelog 
 
 ## Unreleased
+- possibility to specify a port to a query
+We can now query a server at any port (either in IPv4 or v6). 
+```bash
+rkik time.google.com:123
+rkik [2606:4700:f1::123]:123
+```
 - Optional --sync flag to actually apply the time from a distant server to our system ( Unix only, needs root )
 
 - New --count --infinite --interval flags for continuous monitoring of the server
