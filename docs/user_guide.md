@@ -1,141 +1,104 @@
 # User Guide
 
-This guide helps you install and use **RKIK** to query and compare NTP servers.
+This guide explains how to install and use **RKIK** to probe and compare NTP servers.
 
 ## Installation
 
-### Prebuilt Binaries
-
-Download the latest archive from the [releases page](https://github.com/aguacero7/rkik/releases/latest) and extract it:
-
-For Linux:
-
+### AUR (Arch Linux and derivatives)
+A development package **`rkik-git`** is available:
 ```bash
-tar xvfz rkik-linux-x86_64.tar.gz
-sudo mv rkik /usr/local/bin
+git clone https://aur.archlinux.org/rkik-git.git
+cd rkik-git
+makepkg -si
+```
+With a helper (example `yay`):
+```bash
+yay -S rkik-git
 ```
 
-For Windows:
-
-Use the `.exe` from the archive and place it in your `PATH`.
-
-### Install Packages
-
-Prebuilt Linux packages are provided and may later be added to official repositories.
-
-- **RPM (RedHat, Fedora, Alma, Rocky)**
-
+### Nix / NixOS
+RKIK is packaged in nixpkgs as **`rkik`** (availability/version depends on the channel):
 ```bash
-rpm -U rkik-X.Y.Z-R.x86_64.rpm
-# or
-dnf install rkik-X.Y.Z-R.x86_64.rpm
-# or
-yum install rkik-X.Y.Z-R.x86_64.rpm
+# temporary shell
+nix shell nixpkgs#rkik
+# install into user profile
+nix-env -iA nixpkgs.rkik
 ```
 
-- **DEB (Debian, Ubuntu, Kali, etc.)**
-
+### Binaries / Linux packages
+Archives and `.deb`/`.rpm` are published in GitHub Releases.
 ```bash
+# Debian/Ubuntu
 sudo apt install ./rkik_X.Y.Z-R_amd64.deb
+
+# Fedora/RHEL/Alma/Rocky
+sudo dnf install rkik-X.Y.Z-R.x86_64.rpm
 ```
 
-### From Source
-
+### From source
 ```bash
 git clone https://github.com/aguacero7/rkik.git
 cd rkik
 cargo build --release
-sudo cp target/release/rkik /usr/local/bin
+sudo install -m 0755 target/release/rkik /usr/local/bin/rkik
 ```
-
-## Configuration
-
-`rkik` does not require any configuration files.  
-All behavior is controlled via command-line arguments.
 
 ## Usage
 
-### Query a single server (sync)
-
+### Probe a single server
 ```bash
 rkik pool.ntp.org
-```
-
-Or using the flag:
-
-```bash
 rkik --server time.cloudflare.com
 ```
 
-This runs a single request, using the synchronous NTP client. Use `--verbose` to get more detail.
-
-### Compare multiple servers (async)
-
+### Compare multiple servers (asynchronous)
 ```bash
-rkik --compare time.google.com time.cloudflare.com 0.de.pool.ntp.org
-```
-
-RKIK will resolve and query all servers **in parallel** and output their offset relative to the local system clock.
-
-You can pass 2 or more servers. Example output:
-
-```bash
-Comparing (async): 3 servers
-time.google.com [142.251.129.16 v4]: 1.034 ms
-time.cloudflare.com [162.159.200.1 v4]: 0.867 ms
-0.de.pool.ntp.org [85.214.110.245 v4]: 2.348 ms
-Max drift: 1.481 ms (min: 0.867, max: 2.348, avg: 1.416)
-```
-
-You can also format as JSON:
-
-```bash
+rkik --compare time.google.com,time.cloudflare.com,0.de.pool.ntp.org
 rkik --compare time1 time2 time3 --format json
 ```
 
-### Additional Flags
+### IPv6-only
+```bash
+rkik -6 --server 2.pool.ntp.org -j
+```
 
-- `--verbose` — shows NTP stratum and reference ID.
-- `--ipv6` — forces AAAA resolution (IPv6 only).
-- `--format json` — machine-readable output.
+### Output formats
+- `--format text` (default) — human-readable.
+- `--format json` — detailed, stable.
+- `--format simple` — minimal text (timestamp, name/port).
+- `--format json-short` — compact (`{"utc": "...", "name": "...", "port": 123}`).
+  Aliases: `-j/--json`, `-S/--short`.
 
-## Use Cases
+### Continuous mode
+```bash
+# two measurements, 1s apart
+rkik --server time.cloudflare.com --count 2 --interval 1 --short
 
-- Spot-check your system clock drift:
-  ```bash
-  rkik --compare time.google.com time.cloudflare.com
-  ```
+# infinite loop (Ctrl-C to stop)
+rkik --server time.google.com --infinite --format json
+```
+For ingestion into a SIEM/log pipeline, prefer `--format json` and collect **one JSON object per line**.
 
-- Monitor NTP consistency across providers or ISPs.
-- Validate reachability and IPv6 NTP responses:
-  ```bash
-  rkik --compare --ipv6 time.cloudflare.com 2a00:fb01::1
-  ```
+### Targets `host[:port]`
+```bash
+rkik time.google.com:123
+rkik [2606:4700:f1::123]:123
+```
 
-- Scripted JSON output for integration with logging or SIEM systems.
+### Colors
+Disable all coloring:
+```bash
+rkik --no-color
+# or environment variable
+NO_COLOR=1 rkik ...
+```
 
 ## Troubleshooting
-
-- **"Failed to resolve hostname"**  
-  → Check DNS resolution or try adding `--ipv6` if needed.
-
-- **"Timeout or no response"**  
-  → Ensure your firewall allows **UDP port 123**.
-
-- **"Offset too large"**  
-  → Your system clock may be significantly out of sync.
+- **Resolution failed**: check DNS / try `-6` if needed.
+- **Timeout**: open UDP/123.
+- **Inconsistent offsets**: verify local clock and repeatability.
 
 ## FAQ
-
-**Q:** Does RKIK support IPv6?  
-**A:** Yes. Use `--ipv6` to force AAAA queries.
-
-**Q:** Can I compare more than 2 servers?  
-**A:** Yes. `--compare` supports 2 or more servers. All are queried in parallel.
-
-**Q:** Can RKIK adjust my system clock?  
-**A:** No. RKIK only queries servers. It never changes your time.
-
-## Licensing
-
-RKIK is open-source, licensed under the MIT license.
+- **IPv6 supported?** Yes, `-6`.
+- **More than 2 servers?** Yes, `--compare` accepts N≥2, all in parallel.
+- **Adjust the system clock?** Optional via `--sync` (Unix, root, `sync` feature) — disabled by default.

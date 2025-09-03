@@ -71,9 +71,9 @@ struct Args {
     #[arg(long)]
     pub sync: bool,
 
-    /// Positional server name or IP
+    /// Positional server name or IP (can include port specification) - Examples: [time.google.com, [2001:4860:4860::8888]:123, 192.168.1.23:123]
     #[arg(index = 1)]
-    positional: Option<String>,
+    target: Option<String>,
 
     /// Infinite count mode
     #[arg(short = '8', long)]
@@ -166,7 +166,7 @@ async fn main() {
         process::exit(2);
     }
 
-    let exit_code = match (&args.compare, &args.server, &args.positional) {
+    let exit_code = match (&args.compare, &args.server, &args.target) {
         (Some(list), _, _) => {
             let mut all: HashMap<String, Vec<ProbeResult>> = HashMap::new();
             let mut n = 0u32;

@@ -1,89 +1,68 @@
 # Developer Guide
 
-This guide describes the project architecture and how to contribute.
+This guide describes the project architecture and contribution workflow, we are highly open to any contribution !!
 
 ## Project Architecture
 
-RKIK is a Rust command-line application to query and compare NTP servers.
+RKIK is a Rust CLI with a **reusable library**.
 
-- **Main Logic**: Centralized in `src/lib.rs`, with async logic integrated for multi-server comparison.
-- **CLI Parsing**: Done with [`clap`](https://docs.rs/clap), supporting both positional and flagged arguments.
-- **NTP Client**:
-  - [`rsntp`](https://crates.io/crates/rsntp) provides both sync and async APIs.
-  - `SntpClient` is used for single-server queries (sync).
-  - `AsyncSntpClient` is used for `--compare` (async).
-- **Async Runtime**: Powered by [`tokio`](https://crates.io/crates/tokio).
-- **Terminal Output**: Colored output via the `console` crate.
+- **CLI entrypoint**: `src/bin/rkik.rs` (clap parsing, text/JSON rendering, color control, continuous modes).
+- **Library**: `src/lib.rs` re-exports the public API and organizes modules:
+  - `adapters/`: DNS resolver and NTP client (`rsntp`).
+  - `domain/ntp.rs`: `Target`, `ProbeResult` (derive `Serialize` under the `json` feature).
+  - `services/query.rs`: `pub async fn query_one(...) -> Result<ProbeResult, RkikError>`.
+  - `services/compare.rs`: `pub async fn compare_many(...) -> Result<Vec<ProbeResult>, RkikError>` (parallel via `futures::join_all`).
+  - `fmt/json.rs`, `fmt/text.rs`: serialization and terminal rendering (not used by the library’s public API).
+  - `stats/`: min/max/avg rollups.
+  - `sync/` (feature `sync`): system time application (Unix only).
+- **Runtime**: multi-threaded `tokio`.
 
-## Code Structure
+### Principles
+- **No CLI deps in the public API** (no `clap`, `console`, or `process::exit` in library functions).
+- **Errors**: `thiserror` + `Result<_, RkikError>`.
+- **Tracing**: `tracing::instrument` on I/O boundaries.
 
-```
+## Code Layout
+
+```text
 src/
-  main.rs        - CLI entry point, dispatches sync or async paths
-  lib.rs         - Core logic, including IP resolution, sync query and async comparison
-  async_compare.rs - Async implementation of --compare (2+ servers)
+  bin/rkik.rs        # CLI (flags, colors, formats, loops)
+  lib.rs             # API re-exports
+  adapters/          # DNS + rsntp
+  domain/            # domain types (ProbeResult, Target, ...)
+  services/          # query_one / compare_many
+  fmt/               # text/json output (CLI-side)
+  stats/             # Stats
+  sync/              # 'sync' feature (Unix)
 ```
 
-Unit and CLI tests are in the `tests/` directory.
+## Async mode
+- `--compare` is **asynchronous** and runs all queries in parallel via `join_all`.
+- One-shot queries are exposed as **async** via `query_one`.
+- Timeout is passed as a `Duration` parameter.
 
-## Async Mode
-
-The comparison mode (`--compare s1 s2 [s3...]`) is always **asynchronous**, and runs all queries in parallel using `futures::join_all`.
-
-Simple queries (`--server`, positional) remain **synchronous** for simplicity and performance.
-
-## Environment Setup
-
-Ensure you have the latest stable Rust toolchain:
-
+## Environment
 ```bash
 rustup install stable
 rustup default stable
-```
-
-Build the project:
-
-```bash
 cargo build --release
 ```
 
-Run all tests (unit + integration):
-
-```bash
-cargo test
-```
-
-If you want to simulate real NTP requests in tests, enable optional network tests (not enabled by default):
-
-```bash
-cargo test --features integration-tests
-```
-
-## Contribution Guidelines
-
-1. Fork the repository and create your feature branch.
-2. Follow the async design if you contribute to `--compare`.
-3. Write tests for your changes (unit or CLI).
-4. Run `cargo fmt -- --check` and ensure no changes are needed.
-5. Submit a pull request and reference the relevant issue.
+## Tests
+- **Library** (`tests/v1_lib.rs`) — `tokio::test` (+ `--features network-tests` to talk to real NTP servers).
+- **CLI** (`tests/v1_cli.rs`) — `assert_cmd`/`predicates`.
+- Lint/format:
+  ```bash
+  cargo fmt --all -- --check
+  cargo clippy --all-targets --all-features -D warnings
+  ```
 
 ## CI/CD
+- Multi-OS test/build workflow (Linux/macOS/Windows): `cargo test`, `fmt`, `clippy`.
+- Release: `.deb`, `.rpm`, binaries; `cargo publish` (source-only).
 
-The workflow `ci-test-n-build.yml` runs on each push. It covers:
-- `cargo test`, `cargo fmt`, and `cargo clippy`
-- Multiple targets: Linux, macOS, Windows
-- Checks with stable toolchain
-
-The `release.yml` workflow handles:
-- Package builds (`.deb`, `.rpm`, static binaries)
-- Cross-compilation for Linux and Windows
-- Release asset upload on GitHub
-
-Crates published via `cargo publish` are **source-only**, controlled via `Cargo.toml: package.include`.
-
-Packaging metadata (description, license, deb/rpm configs) is also maintained in `Cargo.toml`.
-
-## Notes
-
-- Prefer `join_all` over `spawn` to keep async logic deterministic.
-- The async comparison logic is designed to scale up to ~10 servers without performance drop.
+## Contribution
+1. Fork + feature branch.
+2. Preserve the library/CLI split and the async design.
+3. Keep `cargo fmt` and `clippy` clean.
+4. Submit a PR referencing the relevant issue.
