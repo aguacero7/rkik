@@ -72,6 +72,35 @@ We've added the `--nocolor` arg for the output to not be stylized, otherwise, il
 - Short output format
 You can now use `--format simple` or `-S` / `--short` to display a minimalist output with only the time of the requested server and its IP address.
 
+- Code refactorisation
+The codebase is now more modular, which results n the capability of rkik to become a lib.
+```bash 
+.
+├── adapters
+│   ├── mod.rs
+│   ├── ntp_client.rs
+│   └── resolver.rs
+├── bin
+│   └── rkik.rs
+├── domain
+│   ├── mod.rs
+│   └── ntp.rs
+├── error.rs
+├── fmt
+│   ├── json.rs
+│   ├── mod.rs
+│   └── text.rs
+├── lib.rs
+├── services
+│   ├── compare.rs
+│   ├── mod.rs
+│   └── query.rs
+├── stats.rs
+└── sync
+    ├── mod.rs
+    └── sync.rs
+```
+
 ## Latest version v0.6.1
 ### Minor changes
 - `--version` flag to display installed rkik's version
