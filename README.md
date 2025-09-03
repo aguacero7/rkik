@@ -13,10 +13,11 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 
 - Query any NTP server (IPv4 or IPv6)
 -  Compare offsets between X servers
--  Output formats: human-readable or JSON
+-  Output formats: human-readable or JSON - both shortable (`-S`)
 -  Verbose mode for advanced metadata
--  Accepts both FQDN and raw IP addresses
--  Argument parsing via `clap` with fallback positional support
+-  Accepts both FQDN and raw IPv4/6 addresses
+-  Continuous diag with either infinite or static count
+-  Port specification
 
 ---
 
@@ -27,7 +28,7 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 # Download rkik-linux-x86_64.tar.gz on https://github.com/aguacero7/rkik/releases/latest
 tar xvfz rkik-linux-x86_64.tar.gz 
 cd rkik-linux-x86_64/
-sudo mv ./rkik /usr/local/bin
+sudo cp ./rkik /usr/local/bin
 ```
 ### Red-hat Like Systems (CentOS, Fedora, RHEL, Alma,..)
 ```bash
@@ -41,7 +42,7 @@ yum install <rkik-<X.Y.Z-R>.x86_64.rpm>
 ### Debian-like Systems
 ```bash
 # Download rkik-<X.Y.Z-R>.x86_64.deb  on https://github.com/aguacero7/rkik/releases/latest
-apt install <rkik-<X.Y.Z-R>.x86_64.rpm>
+apt install <rkik-<X.Y.Z-R>.x86_64.deb>
 ```
 ### Cargo
 ```bash
@@ -58,19 +59,31 @@ sudo cp target/release/rkik /usr/local/bin
 rkik --help
 ```
 
+
+### Compile sync feature
+To enable rkik to apply queried time to your system, you must include sync feature to rkik's compilation
+```bash
+cargo build --release --features sync
+```
+
 ---
 
 ## Usage Examples
 
 | Command                                          | Description                                |
 |--------------------------------------------------|--------------------------------------------|
+| `rkik -V`                              | Display rkik installed version           |
 | `rkik pool.ntp.org`                              | Query an NTP server (positional)           |
 | `rkik pool.ntp.org -6`                              | Query an NTP server using IPv6 (positional)           |
 | `rkik --server pool.ntp.org`                     | Same as above, explicit flag               |
-| `rkik --server time.google.com --verbose`        | Verbose query output                       |
-| `rkik --server time.cloudflare.com --format json`| JSON output for a single server            |
+| `rkik --server time.google.com -v`        | Verbose query output                       |
+| `rkik --server time.cloudflare.com -jp`| JSON output for a single server            |
 | `rkik --compare pool.ntp.org time.google.com`    | Compare two servers                        |
-| `rkik -C ntp1 ntp2 ntp3 ntp4 --format json`         | Compare servers with JSON output           |
+| `rkik time.google.com -8 -j`         | Continuously query a server and display a raw json output (useful for monitoring scripts)          |
+| `rkik es.pool.ntp.org -S `         | Query a server and display a short minimalist output           |
+| `rkik -C ntp1 ntp2 -c 2 -i 1 --nocolor`         | Compare 2 servers twice with an interval of 1s and display a nocolor output           |
+| `rkik -S time.google.com --sync`         | Query a server and apply returned time to system (sync feature, UNIX only, requires root, is not installed by default)           |
+
 
 ---
 
@@ -79,26 +92,28 @@ rkik --help
 **Human-readable:**
 ```
 Server: time.google.com
-IP: 216.239.35.0
-UTC Time: Mon, 27 May 2024 13:45:00 +0000
-Local Time: 2024-05-27 15:45:00
-Clock Offset: -1.203 ms
-Round Trip Delay: 2.320 ms
+IP: 216.239.35.4:123
+UTC Time: Wed, 3 Sep 2025 09:44:43 +0000
+Local Time: 2025-09-03 11:44:43
+Clock Offset: -6776478.958 ms
+Round Trip Delay: 33.192 ms
 ```
 
 **JSON:**
 ```json
 {
   "schema_version": 1,
-  "run_ts": "2025-08-25T15:40:43.774174713+00:00",
+  "run_ts": "2025-09-03T11:37:57.240321504+00:00",
   "results": [
     {
       "name": "time.google.com",
-      "ip": "216.239.35.8",
-      "offset_ms": 0.16905309166759253,
-      "rtt_ms": 12.1621775906533,
-      "utc": "2025-08-25T15:40:43.774244589+00:00",
-      "local": "2025-08-25 17:40:43"
+      "ip": "216.239.35.4",
+      "port": 123,
+      "offset_ms": -6774948.655983666,
+      "rtt_ms": 46.76786344498396,
+      "utc": "2025-09-03T09:45:02.291616786+00:00",
+      "local": "2025-09-03 11:45:02",
+      "timestamp": null
     }
   ]
 }
@@ -107,6 +122,29 @@ Round Trip Delay: 2.320 ms
 
 ---
 
-## Documentation
+## Arguments supported 
+```bash
+Rusty Klock Inspection Kit - NTP Query and Compare Tool
 
-See the [docs](docs/README.md) directory for the full user and developer guides.
+Usage: rkik [OPTIONS] [TARGET]
+
+Arguments:
+  [TARGET]  Positional server name or IP (can include port specification) - Examples: [time.google.com, [2001:4860:4860::8888]:123, 192.168.1.23:123]
+
+Options:
+  -s, --server <SERVER>                 Query a single NTP server (optional)
+  -C, --compare <COMPARE> <COMPARE>...  Compare multiple servers
+  -v, --verbose                         Show detailed output
+  -f, --format <FORMAT>                 Output format: text or json [default: text] [possible values: text, json, simple, json-short]
+  -j, --json                            Alias for JSON output
+  -S, --short                           Alias for simple / short text output
+  -p, --pretty                          Pretty-print JSON
+      --no-color                        Disable colored output
+  -6, --ipv6                            Use IPv6 resolution only
+      --timeout <TIMEOUT>               Timeout in seconds [default: 5]
+  -8, --infinite                        Infinite count mode
+  -i, --interval <INTERVAL>             Interval between queries in seconds (only with --infinite or --count) [default: 1]
+  -c, --count <COUNT>                   Specific count of requests [default: 1]
+  -h, --help                            Print help
+  -V, --version                         Print version
+```
