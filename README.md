@@ -20,7 +20,6 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 -  Port specification
 
 ---
-
 ## Installation
 
 ### Linux
@@ -75,7 +74,7 @@ cargo build --release --features sync
 | `rkik -V`                              | Display rkik installed version           |
 | `rkik pool.ntp.org`                              | Query an NTP server (positional)           |
 | `rkik pool.ntp.org -6`                              | Query an NTP server using IPv6 (positional)           |
-| `rkik --server pool.ntp.org`                     | Same as above, explicit flag               |
+| `rkik pool.ntp.org:123`                     | Same as above, explicit specification of a port               |
 | `rkik --server time.google.com -v`        | Verbose query output                       |
 | `rkik --server time.cloudflare.com -jp`| JSON output for a single server            |
 | `rkik --compare pool.ntp.org time.google.com`    | Compare two servers                        |
@@ -148,3 +147,32 @@ Options:
   -h, --help                            Print help
   -V, --version                         Print version
 ```
+
+--- 
+
+## Example Use case
+Sometimes, the monitoring system shows up with a ntp error on a server.
+You don't know if the problem comes from this server or its reference.
+Then you try `rkik ntp.server.local -v`
+```bash
+Server: ntp.server.local
+IP: 192.168.1.123:123
+UTC Time: Wed, 3 Sep 2025 13:06:15 +0000
+Local Time: 2025-09-03 15:06:15
+Clock Offset: 5000.145 ms
+Round Trip Delay: 27.420 ms
+Stratum: 2
+Reference ID: 145.238.80.80
+```
+
+At this moment, we can assure there is an offset between our system and the distant server, we can also know which is the reference of that server.
+We will chick whether this reference has an offset with us or not with `rkik 145.238.80.80`
+```bash
+Server: 145.238.80.80
+IP: 145.238.80.80:123
+UTC Time: Wed, 3 Sep 2025 13:09:57 +0000
+Local Time: 2025-09-03 15:09:57
+Clock Offset: 5001.531 ms
+Round Trip Delay: 8.804 ms
+```
+It does, we now can assure the problem is external to our server, we may now connect on the system to change its reference with another server.
