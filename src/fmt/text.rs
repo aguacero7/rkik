@@ -35,11 +35,12 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
 
     if verbose {
         out.push_str(&format!(
-            "\n{str_lbl} {str_val}\n{ref_lbl} {ref_val}\n Timestamp: {timestamp}",
+            "\n{str_lbl} {str_val}\n{ref_lbl} {ref_val}\n{str_ts}: {timestamp}",
             str_lbl = style("Stratum:").cyan().bold(),
             str_val = r.stratum,
             ref_lbl = style("Reference ID:").cyan().bold(),
             ref_val = r.ref_id,
+            str_ts = style("Timestamp").cyan().bold(),
             timestamp = r.timestamp
         ));
     }
