@@ -63,8 +63,8 @@ struct Args {
     ipv6: bool,
 
     /// Timeout in seconds
-    #[arg(long, default_value_t = 5)]
-    timeout: u64,
+    #[arg(long, default_value_t = 5.0)]
+    timeout: f64,
 
     /// Enable one-shot system clock synchronization (requires root)
     #[cfg(feature = "sync")]
@@ -85,8 +85,8 @@ struct Args {
     infinite: bool,
 
     /// Interval between queries in seconds (only with --infinite or --count)
-    #[arg(short = 'i', long, default_value_t = 1)]
-    interval: u64,
+    #[arg(short = 'i', long, default_value_t = 1.0)]
+    interval: f64,
 
     /// Specific count of requests
     #[arg(short = 'c', long, default_value_t = 1)]
@@ -117,7 +117,7 @@ async fn main() {
     set_colors_enabled(want_color);
 
     let term = Term::stdout();
-    let timeout = Duration::from_secs(args.timeout);
+    let timeout = Duration::from_secs_f64(args.timeout);
 
     if args.infinite && args.count != 1 {
         term.write_line(
@@ -139,7 +139,7 @@ async fn main() {
         )
         .ok();
     }
-    if args.interval != 1 && !args.infinite && args.count == 1 {
+    if args.interval != 1.0 && !args.infinite && args.count == 1 {
         term.write_line(
             &style("--interval requires --infinite or --count")
                 .red()
@@ -235,13 +235,13 @@ async fn main() {
                     break;
                 }
                 if args.infinite {
-                    let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+                    let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
                     tokio::select! {
                         _ = sleep => {},
                         _ = signal::ctrl_c() => { break; }
                     }
                 } else {
-                    tokio::time::sleep(Duration::from_secs(args.interval)).await;
+                    tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
                 }
             }
 
@@ -360,13 +360,13 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
             break;
         }
         if args.infinite {
-            let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+            let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
             tokio::select! {
                 _ = sleep => {},
                 _ = signal::ctrl_c() => { break; }
             }
         } else {
-            tokio::time::sleep(Duration::from_secs(args.interval)).await;
+            tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
         }
     }
 
@@ -405,7 +405,12 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
                         let _ =
                             term.write_line(&style("Sync skipped (dry-run)").yellow().to_string());
                     } else {
-                        let _ = term.write_line(&style("Sync applied").green().to_string());
+                        if !(args.count > 1) {
+                            let _ = term.write_line(&style("Sync applied").green().to_string());
+                        }
+                        else {
+                            let _ = term.write_line(&style(format!("Average offset Sync applied : {:.3} ms",probe.offset_ms)).green().to_string());
+                        }
                     }
                 }
             }
