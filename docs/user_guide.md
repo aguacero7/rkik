@@ -101,4 +101,4 @@ NO_COLOR=1 rkik ...
 ## FAQ
 - **IPv6 supported?** Yes, `-6`.
 - **More than 2 servers?** Yes, `--compare` accepts N≥2, all in parallel.
-- **Adjust the system clock?** Optional via `--sync` (Unix, root, `sync` feature) — disabled by default.
+- **Adjust the system clock?** Optional via `--sync` requirements: (Unix, root)
