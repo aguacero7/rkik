@@ -1,5 +1,11 @@
 # RKIK - Changelog 
 
+## Unreleased
+- CI Improvements on clippy
+- API Double path for sync module fixed
+- Enhanced stability for sync feature
+- Sync feature compiled by default in packages
+
 ## [1.0.0] – 2025-09-03
 
 ### Added
