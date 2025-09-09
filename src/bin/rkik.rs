@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
-use rkik::sync::{SyncError, sync_from_probe};
+use rkik::sync::{SyncError, sync_from_probe,get_sys_permissions};
 use std::io::{self, IsTerminal};
 use std::process;
 use std::time::Duration;
@@ -72,8 +72,8 @@ struct Args {
     pub sync: bool,
 
     /// Flag to cancel synchronisation (for testing)
-    #[cfg( feature = "sync")]
-    #[arg(short = '0',long="dry-run")]
+    #[cfg(feature = "sync")]
+    #[arg(short = '0', long = "dry-run")]
     pub dry_run: bool,
 
     /// Positional server name or IP (can include port specification) - Examples: [time.google.com, [2001:4860:4860::8888]:123, 192.168.1.23:123]
@@ -389,13 +389,24 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
 
     #[cfg(feature = "sync")]
     if args.sync {
+        let mut no_sync = false;
+        if !get_sys_permissions() | args.dry_run {
+            no_sync = true;
+        }
         let probe = average_probe(&all);
-        match sync_from_probe(&probe, args.dry_run) {
+
+        match sync_from_probe(&probe, no_sync) {
             Ok(()) => {
-                if args.dry_run {
-                    let _ = term.write_line(&style("Sync skipped (nosync)").yellow().to_string());
+                if !get_sys_permissions() {
+                    let _ = term
+                        .write_line(&style("Error: need root or CAP_SYS_TIME").red().to_string());
                 } else {
-                    let _ = term.write_line(&style("Sync applied out of").green().to_string());
+                    if args.dry_run {
+                        let _ =
+                            term.write_line(&style("Sync skipped (dry-run)").yellow().to_string());
+                    } else {
+                        let _ = term.write_line(&style("Sync applied").green().to_string());
+                    }
                 }
             }
             Err(SyncError::Permission(e)) => {
