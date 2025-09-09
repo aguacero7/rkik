@@ -400,26 +400,24 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
                 if !get_sys_permissions() {
                     let _ = term
                         .write_line(&style("Error: need root or CAP_SYS_TIME").red().to_string());
-                } else {
-                    if args.dry_run {
-                        let _ =
-                            term.write_line(&style("Sync skipped (dry-run)").yellow().to_string());
-                    } else {
-                        if !(args.count > 1) {
-                            let _ = term.write_line(&style("Sync applied").green().to_string());
-                        } else {
-                            let _ = term.write_line(
-                                &style(format!(
-                                    "Average offset Sync applied : {:.3} ms",
-                                    probe.offset_ms
-                                ))
-                                .green()
-                                .to_string(),
-                            );
-                        }
-                    }
+                 } else if args.dry_run {
+                     let _ =
+                         term.write_line(&style("Sync skipped (dry-run)").yellow().to_string());
+                    } 
+                    else if args.count<=1 {
+                                let _ = term.write_line(&style("Sync applied").green().to_string());
+                            } 
+                            else {
+                                let _ = term.write_line(
+                                    &style(format!(
+                                        "Average offset Sync applied : {:.3} ms",
+                                        probe.offset_ms
+                                    ))
+                                    .green()
+                                    .to_string(),
+                                );
+                            }
                 }
-            }
             Err(SyncError::Permission(e)) => {
                 term.write_line(&style(format!("Error: {}", e)).red().to_string())
                     .ok();

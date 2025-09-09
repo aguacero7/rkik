@@ -18,6 +18,7 @@ pub fn sync_from_probe(probe: &ProbeResult, dry_run: bool) -> Result<(), SyncErr
     step_to_utc(&target, dry_run)
 }
 
+#[allow(clippy::needless_return)]
 pub fn get_sys_permissions() -> bool {
     #[cfg(unix)]
     unsafe {
