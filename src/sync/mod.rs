@@ -1,7 +1,8 @@
 //! One-shot system clock synchronization helpers (feature = "sync").
 //! Force a STEP to server UTC + half RTT. Big jumps allowed. Unix-only.
 use crate::ProbeResult;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
+use chrono::Duration as ChronoDuration;
 use std::io;
 
 #[derive(Debug)]
@@ -20,6 +21,9 @@ pub fn sync_from_probe(probe: &ProbeResult, nosync: bool) -> Result<(), SyncErro
 
 #[cfg(unix)]
 fn step_to_utc(utc: &DateTime<Utc>, nosync: bool) -> Result<(), SyncError> {
+    if nosync {
+        return Ok(());
+    }
     use libc::{CLOCK_REALTIME, clock_settime, timespec};
 
     unsafe {
@@ -29,9 +33,7 @@ fn step_to_utc(utc: &DateTime<Utc>, nosync: bool) -> Result<(), SyncError> {
                 "need root or CAP_SYS_TIME",
             )));
         }
-        if nosync {
-            return Ok(());
-        }
+
     }
     let ts = timespec {
         tv_sec: utc.timestamp() as libc::time_t,
