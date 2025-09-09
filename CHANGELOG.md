@@ -1,18 +1,42 @@
 # RKIK - Changelog 
 
-## Unreleased
-- CI Improvements
-  > The CI does now use a linter (Clippy) to ensure Code Quality.
-- API Double path for sync module fixed
-  > There were a double path in the sync module, we were able to call it using `rkik::sync::sync` AND using `rkik::sync`
-- Sync feature compiled by default in packages
-  > Seen as the feature has been improved in stability, we can now propose it by default in rkik. It's very useful to try
-- Interval changed to float
-  > You can now send x request with a non-integer number of seconds, especially useful to use 0.1, 0.5 seconds intervals 
-- Timeout changed to float
-   > Basically the same as Interval
-- Dry-run option for sync query
-   > We can now use the `--dry-run` flag on sync query to not really apply the time, it's mainly useful for tests.
+## [1.1.0] - 2025-09-09
+
+### Added
+- **Sync dry-run mode**: `--dry-run` (and its short alias, if enabled) to validate the sync workflow without changing the system clock.
+
+### Changed
+- **`sync` feature enabled by default** for builds and packages.
+  - To disable: `cargo build --no-default-features --features json`
+- **CLI timing flags accept fractional seconds**:
+  - `--interval` and `--timeout` now accept values like `0.1`, `0.01`, `0.5`.
+  - Effective precision depends on the OS scheduler.
+
+### Fixed
+- **Public API cleanup for the sync module**: removed the duplicate import path.
+  - Supported: `rkik::sync::{...}`
+  - **Removed** (breaking): `rkik::sync::sync::{...}`
+
+### CI / Quality
+- **Clippy integrated into CI** with lints treated as errors (`-D warnings`) to enforce code quality.
+
+---
+
+### Migration Notes
+- Replace imports from `rkik::sync::sync::*` with `rkik::sync::*`.
+- Scripts can now use non-integer intervals and timeouts (e.g., `--interval 0.2`).
+
+### Examples
+```bash
+# 10 requests at 200 ms intervals
+rkik --server time.google.com --count 10 --interval 0.2
+
+# Synchronization in dry-run mode (no clock change)
+rkik --server time.google.com --sync --dry-run
+
+# Build without the sync feature (minimal footprint)
+cargo build --no-default-features --features json
+```
 
 ## [1.0.0] – 2025-09-03
 
