@@ -1,10 +1,18 @@
 # RKIK - Changelog 
 
 ## Unreleased
-- CI Improvements on clippy
+- CI Improvements
+  > The CI does now use a linter (Clippy) to ensure Code Quality.
 - API Double path for sync module fixed
-- Enhanced stability for sync feature
+  > There were a double path in the sync module, we were able to call it using `rkik::sync::sync` AND using `rkik::sync`
 - Sync feature compiled by default in packages
+  > Seen as the feature has been improved in stability, we can now propose it by default in rkik. It's very useful to try
+- Interval changed to float
+  > You can now send x request with a non-integer number of seconds, especially useful to use 0.1, 0.5 seconds intervals 
+- Timeout changed to float
+   > Basically the same as Interval
+- Dry-run option for sync query
+   > We can now use the `--dry-run` flag on sync query to not really apply the time, it's mainly useful for tests.
 
 ## [1.0.0] – 2025-09-03
 
