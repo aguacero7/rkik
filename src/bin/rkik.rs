@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
-use rkik::sync::{SyncError, sync_from_probe};
+use rkik::sync::{SyncError, get_sys_permissions, sync_from_probe};
 use std::io::{self, IsTerminal};
 use std::process;
 use std::time::Duration;
@@ -63,13 +63,18 @@ struct Args {
     ipv6: bool,
 
     /// Timeout in seconds
-    #[arg(long, default_value_t = 5)]
-    timeout: u64,
+    #[arg(long, default_value_t = 5.0)]
+    timeout: f64,
 
     /// Enable one-shot system clock synchronization (requires root)
     #[cfg(feature = "sync")]
     #[arg(long)]
     pub sync: bool,
+
+    /// Flag to cancel synchronisation (for testing)
+    #[cfg(feature = "sync")]
+    #[arg(short = '0', long = "dry-run")]
+    pub dry_run: bool,
 
     /// Positional server name or IP (can include port specification) - Examples: [time.google.com, [2001:4860:4860::8888]:123, 192.168.1.23:123]
     #[arg(index = 1)]
@@ -80,8 +85,8 @@ struct Args {
     infinite: bool,
 
     /// Interval between queries in seconds (only with --infinite or --count)
-    #[arg(short = 'i', long, default_value_t = 1)]
-    interval: u64,
+    #[arg(short = 'i', long, default_value_t = 1.0)]
+    interval: f64,
 
     /// Specific count of requests
     #[arg(short = 'c', long, default_value_t = 1)]
@@ -112,7 +117,7 @@ async fn main() {
     set_colors_enabled(want_color);
 
     let term = Term::stdout();
-    let timeout = Duration::from_secs(args.timeout);
+    let timeout = Duration::from_secs_f64(args.timeout);
 
     if args.infinite && args.count != 1 {
         term.write_line(
@@ -134,7 +139,7 @@ async fn main() {
         )
         .ok();
     }
-    if args.interval != 1 && !args.infinite && args.count == 1 {
+    if args.interval != 1.0 && !args.infinite && args.count == 1 {
         term.write_line(
             &style("--interval requires --infinite or --count")
                 .red()
@@ -230,13 +235,13 @@ async fn main() {
                     break;
                 }
                 if args.infinite {
-                    let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+                    let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
                     tokio::select! {
                         _ = sleep => {},
                         _ = signal::ctrl_c() => { break; }
                     }
                 } else {
-                    tokio::time::sleep(Duration::from_secs(args.interval)).await;
+                    tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
                 }
             }
 
@@ -355,13 +360,13 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
             break;
         }
         if args.infinite {
-            let sleep = tokio::time::sleep(Duration::from_secs(args.interval));
+            let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
             tokio::select! {
                 _ = sleep => {},
                 _ = signal::ctrl_c() => { break; }
             }
         } else {
-            tokio::time::sleep(Duration::from_secs(args.interval)).await;
+            tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
         }
     }
 
@@ -384,22 +389,49 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
 
     #[cfg(feature = "sync")]
     if args.sync {
+        let mut no_sync = false;
+        if !get_sys_permissions() | args.dry_run {
+            no_sync = true;
+        }
         let probe = average_probe(&all);
-        match sync_from_probe(&probe) {
+
+        match sync_from_probe(&probe, no_sync) {
             Ok(()) => {
-                let _ = term.write_line(&style("Sync applied").green().to_string());
+                if !get_sys_permissions() {
+                    let _ = term
+                        .write_line(&style("Error: need root or CAP_SYS_TIME").red().to_string());
+                } else if args.dry_run {
+                    let _ = term.write_line(&style("Sync skipped (dry-run)").yellow().to_string());
+                } else if args.count <= 1 {
+                    let _ = term.write_line(&style("Sync applied").green().to_string());
+                } else {
+                    let _ = term.write_line(
+                        &style(format!(
+                            "Average offset Sync applied : {:.3} ms",
+                            probe.offset_ms
+                        ))
+                        .green()
+                        .to_string(),
+                    );
+                }
             }
             Err(SyncError::Permission(e)) => {
-                term.write_line(&format!("Error: {}", e)).ok();
+                term.write_line(&style(format!("Error: {}", e)).red().to_string())
+                    .ok();
                 process::exit(12);
             }
             Err(SyncError::Sys(e)) => {
-                term.write_line(&format!("Error: {}", e)).ok();
+                term.write_line(&style(format!("Error: {}", e)).red().to_string())
+                    .ok();
                 process::exit(14);
             }
             Err(SyncError::NotSupported) => {
-                term.write_line("Error: sync not supported on this platform")
-                    .ok();
+                term.write_line(
+                    &style("Error: sync not supported on this platform")
+                        .red()
+                        .to_string(),
+                )
+                .ok();
                 process::exit(15);
             }
         }
