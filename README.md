@@ -1,7 +1,7 @@
 # RKIK - Rusty Klock Inspection Kit
 ![Build & Tests](https://github.com/aguacero7/rkik/actions/workflows/ci-test-n-build.yml/badge.svg)
 <br>
-Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But what if you just want to **inspect** the current offset between your system clock and one or more NTP servers — without root, without sync, and without installing anything heavy?
+Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But what if you just want to **inspect** the current offset between your system clock and one or more NTP servers - without root, without installing anything heavy and in a simple CLI command ?
 
 **RKIK** is a Rust-based CLI tool designed for **stateless and passive NTP inspection**, just as `dig` or `ping` are for DNS and ICMP.
 
@@ -80,8 +80,8 @@ cargo build --release --features sync
 | `rkik --compare pool.ntp.org time.google.com`    | Compare two servers                        |
 | `rkik time.google.com -8 -j`         | Continuously query a server and display a raw json output (useful for monitoring scripts)          |
 | `rkik es.pool.ntp.org -S `         | Query a server and display a short minimalist output           |
-| `rkik -C ntp1 ntp2 -c 2 -i 1 --nocolor`         | Compare 2 servers twice with an interval of 1s and display a nocolor output           |
-| `rkik -S time.google.com --sync`         | Query a server and apply returned time to system (sync feature, UNIX only, requires root, is not installed by default)           |
+| `rkik -C ntp1 ntp2 -c 2 -i 0.1 --nocolor`         | Compare 2 servers twice with an interval of 100ms and display a nocolor output           |
+| `rkik -S time.google.com --sync`         | Query a server and apply returned time to system (sync feature -> requires root or specific permissions))          |
 
 
 ---
@@ -140,9 +140,9 @@ Options:
   -p, --pretty                          Pretty-print JSON
       --no-color                        Disable colored output
   -6, --ipv6                            Use IPv6 resolution only
-      --timeout <TIMEOUT>               Timeout in seconds [default: 5]
+      --timeout <TIMEOUT>               Timeout in seconds [default: 5.0]
   -8, --infinite                        Infinite count mode
-  -i, --interval <INTERVAL>             Interval between queries in seconds (only with --infinite or --count) [default: 1]
+  -i, --interval <INTERVAL>             Interval between queries in seconds (only with --infinite or --count) [default: 1.0]
   -c, --count <COUNT>                   Specific count of requests [default: 1]
   -h, --help                            Print help
   -V, --version                         Print version
