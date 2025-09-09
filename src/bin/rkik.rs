@@ -71,6 +71,11 @@ struct Args {
     #[arg(long)]
     pub sync: bool,
 
+    /// Flag to cancel synchronisation (for testing)
+    #[cfg( feature = "sync")]
+    #[arg(short = '0',long="dry-run")]
+    pub dry_run: bool,
+
     /// Positional server name or IP (can include port specification) - Examples: [time.google.com, [2001:4860:4860::8888]:123, 192.168.1.23:123]
     #[arg(index = 1)]
     target: Option<String>,
@@ -385,21 +390,31 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
     #[cfg(feature = "sync")]
     if args.sync {
         let probe = average_probe(&all);
-        match sync_from_probe(&probe) {
+        match sync_from_probe(&probe, args.dry_run) {
             Ok(()) => {
-                let _ = term.write_line(&style("Sync applied").green().to_string());
+                if args.dry_run {
+                    let _ = term.write_line(&style("Sync skipped (nosync)").yellow().to_string());
+                } else {
+                    let _ = term.write_line(&style("Sync applied out of").green().to_string());
+                }
             }
             Err(SyncError::Permission(e)) => {
-                term.write_line(&format!("Error: {}", e)).ok();
+                term.write_line(&style(format!("Error: {}", e)).red().to_string())
+                    .ok();
                 process::exit(12);
             }
             Err(SyncError::Sys(e)) => {
-                term.write_line(&format!("Error: {}", e)).ok();
+                term.write_line(&style(format!("Error: {}", e)).red().to_string())
+                    .ok();
                 process::exit(14);
             }
             Err(SyncError::NotSupported) => {
-                term.write_line("Error: sync not supported on this platform")
-                    .ok();
+                term.write_line(
+                    &style("Error: sync not supported on this platform")
+                        .red()
+                        .to_string(),
+                )
+                .ok();
                 process::exit(15);
             }
         }
