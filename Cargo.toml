@@ -24,7 +24,7 @@ include = [ #for CI to not publish artifacts
 name = "rkik"
 path = "src/bin/rkik.rs"
 [features]
-default = ["json"]
+default = ["json,"sync"]
 json = ["serde", "serde_json"]
 sync = ["libc"]
 network-tests = []

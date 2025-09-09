@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
-use rkik::sync::{SyncError, sync_from_probe,get_sys_permissions};
+use rkik::sync::{SyncError, get_sys_permissions, sync_from_probe};
 use std::io::{self, IsTerminal};
 use std::process;
 use std::time::Duration;
@@ -407,9 +407,15 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
                     } else {
                         if !(args.count > 1) {
                             let _ = term.write_line(&style("Sync applied").green().to_string());
-                        }
-                        else {
-                            let _ = term.write_line(&style(format!("Average offset Sync applied : {:.3} ms",probe.offset_ms)).green().to_string());
+                        } else {
+                            let _ = term.write_line(
+                                &style(format!(
+                                    "Average offset Sync applied : {:.3} ms",
+                                    probe.offset_ms
+                                ))
+                                .green()
+                                .to_string(),
+                            );
                         }
                     }
                 }
