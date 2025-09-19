@@ -55,7 +55,7 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
     // Header
     if results.len() == 2 {
         out.push_str(&format!(
-            "{}:{} {}:{} and {}\n",
+            "{} -  {}:{} and {}:{}\n",
             style("Comparing").bold(),
             style(&results[0].target.name).green(),
             style(&results[0].target.port).green(),
