@@ -405,7 +405,7 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
         }
     }
 
-    if all.len() > 1 {
+    if all.len() > 1 && !args.plugin {
         let stats = compute_stats(&all);
         let format = args.format.clone();
         match format {
