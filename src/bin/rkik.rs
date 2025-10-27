@@ -380,7 +380,8 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
             Err(e) => {
                 if args.plugin {
                     // Plugin mode: report UNKNOWN and exit with code 3
-                    println!("RKIK UNKNOWN - request failed | offset_ms=;{};{};0; rtt_ms=;;;0;",
+                    println!(
+                        "RKIK UNKNOWN - request failed | offset_ms=;{};{};0; rtt_ms=;;;0;",
                         args.warning.map(|v| v.to_string()).unwrap_or_default(),
                         args.critical.map(|v| v.to_string()).unwrap_or_default()
                     );
@@ -425,7 +426,8 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
     // Plugin mode: produce Centreon/Nagios compatible output and exit with proper code
     if args.plugin {
         if all.is_empty() {
-            println!("RKIK UNKNOWN - no result | offset_ms=;{};{};0; rtt_ms=;;;0;",
+            println!(
+                "RKIK UNKNOWN - no result | offset_ms=;{};{};0; rtt_ms=;;;0;",
                 args.warning.map(|v| v.to_string()).unwrap_or_default(),
                 args.critical.map(|v| v.to_string()).unwrap_or_default()
             );
@@ -443,17 +445,16 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
 
         let abs_offset = offset.abs();
         let mut exit_code = 0i32;
-        if let Some(c) = args.critical {
-            if abs_offset > c {
-                exit_code = 2;
-            }
+        if let Some(c) = args.critical
+            && abs_offset > c
+        {
+            exit_code = 2;
         }
-        if exit_code == 0 {
-            if let Some(w) = args.warning {
-                if abs_offset > w {
-                    exit_code = 1;
-                }
-            }
+        if exit_code == 0
+            && let Some(w) = args.warning
+            && abs_offset > w
+        {
+            exit_code = 1;
         }
 
         let state = match exit_code {
