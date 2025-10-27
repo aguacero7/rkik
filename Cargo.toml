@@ -30,7 +30,7 @@ sync = ["libc"]
 network-tests = []
 
 [dependencies]
-rsntp = "4.0.0"
+rsntp = "4.1.0"
 clap = { version = "4.5.47", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 console = "0.16"
