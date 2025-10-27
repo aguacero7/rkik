@@ -1,5 +1,17 @@
 # RKIK - Changelog 
 
+## [1.2.0] - 2025-10-27
+
+### Added
+- **Plugin / Monitoring mode**: new `--plugin` mode that emits a single Centreon/Nagios/Zabbix-compatible line and returns standard plugin exit codes.
+- CLI flags: `--warning <MS>` and `--critical <MS>` (both require `--plugin`).
+
+### Changed
+- In plugin mode, the human-readable multi-line output is suppressed and only the plugin line is printed.
+
+### Notes
+- Thresholds are compared against the absolute clock offset in milliseconds. If the request fails, rkik returns `UNKNOWN` (exit code 3) and prints a plugin-style perfdata line with empty measurement fields.
+
 ## [1.1.0] - 2025-09-09
 
 ### Added
