@@ -91,6 +91,18 @@ struct Args {
     /// Specific count of requests
     #[arg(short = 'c', long, default_value_t = 1)]
     count: u32,
+
+    /// Enable Centreon/Nagios plugin output (produces machine-parseable output and proper exit codes)
+    #[arg(long)]
+    pub plugin: bool,
+
+    /// Warning threshold in ms (requires --plugin)
+    #[arg(long, requires = "plugin", value_name = "MS")]
+    pub warning: Option<f64>,
+
+    /// Critical threshold in ms (requires --plugin)
+    #[arg(long, requires = "plugin", value_name = "MS")]
+    pub critical: Option<f64>,
 }
 
 #[tokio::main]
@@ -152,6 +164,17 @@ async fn main() {
     if args.infinite && args.sync {
         term.write_line(
             &style("--sync cannot be used with --infinite")
+                .red()
+                .to_string(),
+        )
+        .ok();
+        process::exit(2);
+    }
+
+    // refuse --plugin with --compare for now
+    if args.plugin && args.compare.is_some() {
+        term.write_line(
+            &style("--plugin cannot be used with --compare")
                 .red()
                 .to_string(),
         )
@@ -307,50 +330,63 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
     loop {
         match query_one(target, args.ipv6, timeout).await {
             Ok(res) => {
-                if args.count > 1 || args.infinite {
-                    let format = args.format.clone();
-                    match format {
-                        OutputFormat::Text => {
-                            if args.verbose {
+                // In plugin mode we suppress the regular human-readable output and only
+                // collect results to produce the plugin line at the end.
+                if !args.plugin {
+                    if args.count > 1 || args.infinite {
+                        let format = args.format.clone();
+                        match format {
+                            OutputFormat::Text => {
+                                if args.verbose {
+                                    output(
+                                        term,
+                                        std::slice::from_ref(&res),
+                                        OutputFormat::Text,
+                                        args.pretty,
+                                        true,
+                                    );
+                                } else {
+                                    let line = fmt::text::render_short_probe(&res);
+                                    term.write_line(&line).ok();
+                                }
+                            }
+                            OutputFormat::JsonShort => match fmt::json::probe_to_short_json(&res) {
+                                Ok(s) => println!("{}", s),
+                                Err(e) => eprintln!("error serializing: {}", e),
+                            },
+
+                            _ => {
                                 output(
                                     term,
                                     std::slice::from_ref(&res),
-                                    OutputFormat::Text,
+                                    format,
                                     args.pretty,
-                                    true,
+                                    args.verbose,
                                 );
-                            } else {
-                                let line = fmt::text::render_short_probe(&res);
-                                term.write_line(&line).ok();
                             }
                         }
-                        OutputFormat::JsonShort => match fmt::json::probe_to_short_json(&res) {
-                            Ok(s) => println!("{}", s),
-                            Err(e) => eprintln!("error serializing: {}", e),
-                        },
-
-                        _ => {
-                            output(
-                                term,
-                                std::slice::from_ref(&res),
-                                format,
-                                args.pretty,
-                                args.verbose,
-                            );
-                        }
+                    } else {
+                        output(
+                            term,
+                            std::slice::from_ref(&res),
+                            args.format.clone(),
+                            args.pretty,
+                            args.verbose,
+                        );
                     }
-                } else {
-                    output(
-                        term,
-                        std::slice::from_ref(&res),
-                        args.format.clone(),
-                        args.pretty,
-                        args.verbose,
-                    );
                 }
                 all.push(res);
             }
             Err(e) => {
+                if args.plugin {
+                    // Plugin mode: report UNKNOWN and exit with code 3
+                    println!(
+                        "RKIK UNKNOWN - request failed | offset_ms=;{};{};0; rtt_ms=;;;0;",
+                        args.warning.map(|v| v.to_string()).unwrap_or_default(),
+                        args.critical.map(|v| v.to_string()).unwrap_or_default()
+                    );
+                    process::exit(3);
+                }
                 let code = handle_error(term, e);
                 process::exit(code);
             }
@@ -370,7 +406,7 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
         }
     }
 
-    if all.len() > 1 {
+    if all.len() > 1 && !args.plugin {
         let stats = compute_stats(&all);
         let format = args.format.clone();
         match format {
@@ -385,6 +421,55 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
                 term.write_line(&line).ok();
             }
         }
+    }
+
+    // Plugin mode: produce Centreon/Nagios compatible output and exit with proper code
+    if args.plugin {
+        if all.is_empty() {
+            println!(
+                "RKIK UNKNOWN - no result | offset_ms=;{};{};0; rtt_ms=;;;0;",
+                args.warning.map(|v| v.to_string()).unwrap_or_default(),
+                args.critical.map(|v| v.to_string()).unwrap_or_default()
+            );
+            process::exit(3);
+        }
+
+        let stats = compute_stats(&all);
+        let offset = stats.offset_avg;
+        let rtt = stats.rtt_avg;
+        let host = &all[0].target.name;
+        let ip = &all[0].target.ip;
+
+        let warn_str = args.warning.map(|v| format!("{}", v)).unwrap_or_default();
+        let crit_str = args.critical.map(|v| format!("{}", v)).unwrap_or_default();
+
+        let abs_offset = offset.abs();
+        let mut exit_code = 0i32;
+        if let Some(c) = args.critical
+            && abs_offset > c
+        {
+            exit_code = 2;
+        }
+        if exit_code == 0
+            && let Some(w) = args.warning
+            && abs_offset > w
+        {
+            exit_code = 1;
+        }
+
+        let state = match exit_code {
+            0 => "OK",
+            1 => "WARNING",
+            2 => "CRITICAL",
+            _ => "UNKNOWN",
+        };
+
+        println!(
+            "RKIK {} - offset {:.3}ms rtt {:.3}ms from {} ({}) | offset_ms={:.3}ms;{};{};0; rtt_ms={:.3}ms;;;0;",
+            state, offset, rtt, host, ip, offset, warn_str, crit_str, rtt
+        );
+
+        process::exit(exit_code);
     }
 
     #[cfg(feature = "sync")]

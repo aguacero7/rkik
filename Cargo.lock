@@ -573,7 +573,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "rkik"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "chrono",
@@ -592,9 +592,9 @@ dependencies = [
 
 [[package]]
 name = "rsntp"
-version = "4.0.0"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cce5f45764fc4f0da82badc165fec123f137f2b2ba7112778a83575bc6af3e1"
+checksum = "5c475cc467404cd97386127e5c40be936ce69cf77767306fbc5ec0dc812afd87"
 dependencies = [
  "chrono",
  "tokio",
