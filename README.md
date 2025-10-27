@@ -166,7 +166,7 @@ Reference ID: 145.238.80.80
 ```
 
 At this moment, we can assure there is an offset between our system and the distant server, we can also know which is the reference of that server.
-We will chick whether this reference has an offset with us or not with `rkik 145.238.80.80`
+We will check whether this reference has an offset with us or not with `rkik 145.238.80.80`
 ```bash
 Server: 145.238.80.80
 IP: 145.238.80.80:123
@@ -176,3 +176,24 @@ Clock Offset: 5001.531 ms
 Round Trip Delay: 8.804 ms
 ```
 It does, we now can assure the problem is external to our server, we may now connect on the system to change its reference with another server.
+
+## Plugin mode (Centreon / Nagios / Zabbix) 
+
+Since version 1.2, rkik provides a monitoring plugin mode compatible with Centreon, Nagios and Zabbix. When enabled, rkik emits a single machine-parseable line (plugin format) and returns standard plugin exit codes.
+
+Usage
+```bash
+# Query a server and output a single plugin line. Thresholds are in milliseconds.
+rkik time.google.com --plugin --warning 400 --critical 1000
+```
+
+Flags
+- `--plugin` : enable plugin mode.
+- `--warning <MS>` : warning threshold in milliseconds (requires `--plugin`).
+- `--critical <MS>` : critical threshold in milliseconds (requires `--plugin`).
+
+Output format
+- A single line is emitted, example:
+
+RKIK OK - offset 4.006ms rtt 9.449ms from time.google.com (216.239.35.4) | offset_ms=4.006ms;400;1000;0; rtt_ms=9.449ms;;;0;
+
