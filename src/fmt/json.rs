@@ -21,6 +21,7 @@ pub struct JsonProbe {
     pub utc: String,
     pub local: String,
     pub timestamp: Option<i64>,
+    pub authenticated: bool,
 }
 
 #[cfg(feature = "json")]
@@ -53,6 +54,7 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
                     None
                 },
                 timestamp: if verbose { Some(r.timestamp) } else { None },
+                authenticated: r.authenticated,
             })
             .collect();
 

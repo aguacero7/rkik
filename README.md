@@ -12,12 +12,13 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 ## Features
 
 - Query any NTP server (IPv4 or IPv6)
--  Compare offsets between X servers
--  Output formats: human-readable or JSON - both shortable (`-S`)
--  Verbose mode for advanced metadata
--  Accepts both FQDN and raw IPv4/6 addresses
--  Continuous diag with either infinite or static count
--  Port specification
+- **NTS (Network Time Security) support for authenticated time synchronization**
+- Compare offsets between X servers
+- Output formats: human-readable or JSON - both shortable (`-S`)
+- Verbose mode for advanced metadata
+- Accepts both FQDN and raw IPv4/6 addresses
+- Continuous diag with either infinite or static count
+- Port specification
 
 ---
 ## Installation
@@ -59,10 +60,23 @@ rkik --help
 ```
 
 
-### Compile sync feature
-To enable rkik to apply queried time to your system, you must include sync feature to rkik's compilation
+### Compile with optional features
+
+#### Sync feature
+To enable rkik to apply queried time to your system:
 ```bash
 cargo build --release --features sync
+```
+
+#### NTS (Network Time Security) feature
+To enable cryptographically authenticated time queries:
+```bash
+cargo build --release --features nts
+```
+
+#### All features
+```bash
+cargo build --release --features "sync,nts"
 ```
 
 ---
@@ -82,6 +96,8 @@ cargo build --release --features sync
 | `rkik es.pool.ntp.org -S `         | Query a server and display a short minimalist output           |
 | `rkik -C ntp1 ntp2 -c 2 -i 0.1 --nocolor`         | Compare 2 servers twice with an interval of 100ms and display a nocolor output           |
 | `rkik -S time.google.com --sync`         | Query a server and apply returned time to system (sync feature -> requires root or specific permissions))          |
+| `rkik time.cloudflare.com --nts` | Query an NTS-enabled server with cryptographic authentication (requires nts feature) |
+| `rkik --compare nts.ntp.se time.cloudflare.com --nts -v` | Compare multiple NTS servers with verbose output |
 
 
 ---

@@ -11,8 +11,16 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
         // ipv4/hostname in green
         format!("{}", style(r.target.ip).green())
     };
+
+    // NTS authentication indicator
+    let auth_indicator = if r.authenticated {
+        format!(" {}", style("[NTS Authenticated]").green().bold())
+    } else {
+        String::new()
+    };
+
     let mut out = format!(
-        "{srv_lbl} {srv_val}\n\
+        "{srv_lbl} {srv_val}{auth}\n\
          {ip_lbl} {ip_val}:{port}\n\
          {utc_lbl} {utc_val}\n\
          {loc_lbl} {loc_val}\n\
@@ -20,6 +28,7 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
          {rtt_lbl} {rtt_val:.3} ms",
         srv_lbl = style("Server:").cyan().bold(),
         srv_val = style(&r.target.name).green(),
+        auth = auth_indicator,
         ip_lbl = style("IP:").cyan().bold(),
         ip_val = ip_val,
         port = style(r.target.port).green(),
@@ -35,13 +44,19 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
 
     if verbose {
         out.push_str(&format!(
-            "\n{str_lbl} {str_val}\n{ref_lbl} {ref_val}\n{str_ts}: {timestamp}",
+            "\n{str_lbl} {str_val}\n{ref_lbl} {ref_val}\n{str_ts}: {timestamp}\n{auth_lbl} {auth_val}",
             str_lbl = style("Stratum:").cyan().bold(),
             str_val = r.stratum,
             ref_lbl = style("Reference ID:").cyan().bold(),
             ref_val = r.ref_id,
             str_ts = style("Timestamp").cyan().bold(),
-            timestamp = r.timestamp
+            timestamp = r.timestamp,
+            auth_lbl = style("Authenticated:").cyan().bold(),
+            auth_val = if r.authenticated {
+                style("Yes (NTS)").green()
+            } else {
+                style("No").yellow()
+            }
         ));
     }
 
@@ -80,9 +95,16 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
         let ip_version = if r.target.ip.is_ipv6() { "v6" } else { "v4" };
         let offset_style = style(format!("{:.3} ms", r.offset_ms)).yellow();
 
+        let nts_badge = if r.authenticated {
+            format!(" {}", style("[NTS]").green().bold())
+        } else {
+            String::new()
+        };
+
         out.push_str(&format!(
-            "{} [{} {}]: {}\n",
+            "{}{} [{} {}]: {}\n",
             style(&r.target.name).green().bold(),
+            nts_badge,
             ip_style,
             ip_version,
             offset_style
@@ -90,13 +112,19 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
 
         if verbose {
             out.push_str(&format!(
-                "  {} {}\n  {} {}\n  {} {:.3} ms\n",
+                "  {} {}\n  {} {}\n  {} {:.3} ms\n  {} {}\n",
                 style("Stratum:").cyan().bold(),
                 r.stratum,
                 style("Reference ID:").cyan().bold(),
                 r.ref_id,
                 style("Round Trip Delay:").cyan().bold(),
-                r.rtt_ms
+                r.rtt_ms,
+                style("Authenticated:").cyan().bold(),
+                if r.authenticated {
+                    style("Yes (NTS)").green()
+                } else {
+                    style("No").yellow()
+                }
             ));
         }
     }
