@@ -1,4 +1,17 @@
-# RKIK - Changelog 
+# RKIK - Changelog
+
+## [1.2.1] - 2025-11-25
+
+### Fixed
+- **Plugin mode improvements**:
+  - Fixed buffer flushing before `process::exit()` calls to ensure output is always visible
+  - Removed code duplication in UNKNOWN output formatting
+  - Added threshold validation: warning and critical must be non-negative, and warning must be less than critical
+  - Fixed documentation mismatch: exit code conditions now correctly use `>=` for both code and documentation
+  - Replaced `format!("{}")` with more efficient `to_string()` calls
+
+### Changed
+- **Exit code logic**: Threshold comparisons now use `>=` consistently (was `>` in code but `>=` in docs)
 
 ## [1.2.0] - 2025-10-27
 

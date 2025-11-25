@@ -38,7 +38,7 @@ RKIK OK - offset 4.006ms rtt 9.449ms from time.google.com (216.239.35.4) | offse
 ## Exit codes
 
 - `0` (OK): request succeeded and `|offset| < warning` (or no thresholds provided).
-- `1` (WARNING): request succeeded and `|offset| >= warning` and `< critical`.
+- `1` (WARNING): request succeeded and `warning <= |offset| < critical`.
 - `2` (CRITICAL): request succeeded and `|offset| >= critical`.
 - `3` (UNKNOWN): request failed or no usable result (error cases).
 

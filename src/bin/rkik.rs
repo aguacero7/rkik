@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
 use rkik::sync::{SyncError, get_sys_permissions, sync_from_probe};
-use std::io::{self, IsTerminal};
+use std::io::{self, IsTerminal, Write};
 use std::process;
 use std::time::Duration;
 use tokio::signal;
@@ -131,6 +131,38 @@ async fn main() {
     let term = Term::stdout();
     let timeout = Duration::from_secs_f64(args.timeout);
 
+    // Validate thresholds for plugin mode
+    if args.plugin {
+        if let Some(w) = args.warning {
+            if w < 0.0 {
+                term.write_line(&style("--warning must be non-negative").red().to_string())
+                    .ok();
+                let _ = io::stdout().flush();
+                process::exit(2);
+            }
+        }
+        if let Some(c) = args.critical {
+            if c < 0.0 {
+                term.write_line(&style("--critical must be non-negative").red().to_string())
+                    .ok();
+                let _ = io::stdout().flush();
+                process::exit(2);
+            }
+        }
+        if let (Some(w), Some(c)) = (args.warning, args.critical) {
+            if w >= c {
+                term.write_line(
+                    &style("--warning must be less than --critical")
+                        .red()
+                        .to_string(),
+                )
+                .ok();
+                let _ = io::stdout().flush();
+                process::exit(2);
+            }
+        }
+    }
+
     if args.infinite && args.count != 1 {
         term.write_line(
             &style("--infinite cannot be used with --count")
@@ -138,6 +170,7 @@ async fn main() {
                 .to_string(),
         )
         .ok();
+        let _ = io::stdout().flush();
         process::exit(2);
     }
     if (matches!(args.format, OutputFormat::Simple)
@@ -158,6 +191,7 @@ async fn main() {
                 .to_string(),
         )
         .ok();
+        let _ = io::stdout().flush();
         process::exit(2);
     }
     #[cfg(feature = "sync")]
@@ -168,6 +202,7 @@ async fn main() {
                 .to_string(),
         )
         .ok();
+        let _ = io::stdout().flush();
         process::exit(2);
     }
 
@@ -179,6 +214,7 @@ async fn main() {
                 .to_string(),
         )
         .ok();
+        let _ = io::stdout().flush();
         process::exit(2);
     }
 
@@ -191,6 +227,7 @@ async fn main() {
                 .to_string(),
         )
         .ok();
+        let _ = io::stdout().flush();
         process::exit(2);
     }
 
@@ -250,6 +287,7 @@ async fn main() {
                     }
                     Err(e) => {
                         let code = handle_error(&term, e);
+                        let _ = io::stdout().flush();
                         process::exit(code);
                     }
                 }
@@ -321,6 +359,7 @@ async fn main() {
         }
     };
 
+    let _ = io::stdout().flush();
     process::exit(exit_code);
 }
 
@@ -380,14 +419,12 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
             Err(e) => {
                 if args.plugin {
                     // Plugin mode: report UNKNOWN and exit with code 3
-                    println!(
-                        "RKIK UNKNOWN - request failed | offset_ms=;{};{};0; rtt_ms=;;;0;",
-                        args.warning.map(|v| v.to_string()).unwrap_or_default(),
-                        args.critical.map(|v| v.to_string()).unwrap_or_default()
-                    );
+                    emit_unknown(args.warning, args.critical);
+                    let _ = io::stdout().flush();
                     process::exit(3);
                 }
                 let code = handle_error(term, e);
+                let _ = io::stdout().flush();
                 process::exit(code);
             }
         }
@@ -426,11 +463,8 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
     // Plugin mode: produce Centreon/Nagios compatible output and exit with proper code
     if args.plugin {
         if all.is_empty() {
-            println!(
-                "RKIK UNKNOWN - no result | offset_ms=;{};{};0; rtt_ms=;;;0;",
-                args.warning.map(|v| v.to_string()).unwrap_or_default(),
-                args.critical.map(|v| v.to_string()).unwrap_or_default()
-            );
+            emit_unknown(args.warning, args.critical);
+            let _ = io::stdout().flush();
             process::exit(3);
         }
 
@@ -440,21 +474,22 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
         let host = &all[0].target.name;
         let ip = &all[0].target.ip;
 
-        let warn_str = args.warning.map(|v| format!("{}", v)).unwrap_or_default();
-        let crit_str = args.critical.map(|v| format!("{}", v)).unwrap_or_default();
+        let warn_str = args.warning.map(|v| v.to_string()).unwrap_or_default();
+        let crit_str = args.critical.map(|v| v.to_string()).unwrap_or_default();
 
         let abs_offset = offset.abs();
         let mut exit_code = 0i32;
-        if let Some(c) = args.critical
-            && abs_offset > c
-        {
-            exit_code = 2;
+        if let Some(c) = args.critical {
+            if abs_offset >= c {
+                exit_code = 2;
+            }
         }
-        if exit_code == 0
-            && let Some(w) = args.warning
-            && abs_offset > w
-        {
-            exit_code = 1;
+        if exit_code == 0 {
+            if let Some(w) = args.warning {
+                if abs_offset >= w {
+                    exit_code = 1;
+                }
+            }
         }
 
         let state = match exit_code {
@@ -469,6 +504,7 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
             state, offset, rtt, host, ip, offset, warn_str, crit_str, rtt
         );
 
+        let _ = io::stdout().flush();
         process::exit(exit_code);
     }
 
@@ -503,11 +539,13 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
             Err(SyncError::Permission(e)) => {
                 term.write_line(&style(format!("Error: {}", e)).red().to_string())
                     .ok();
+                let _ = io::stdout().flush();
                 process::exit(12);
             }
             Err(SyncError::Sys(e)) => {
                 term.write_line(&style(format!("Error: {}", e)).red().to_string())
                     .ok();
+                let _ = io::stdout().flush();
                 process::exit(14);
             }
             Err(SyncError::NotSupported) => {
@@ -517,10 +555,21 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
                         .to_string(),
                 )
                 .ok();
+                let _ = io::stdout().flush();
                 process::exit(15);
             }
         }
     }
+}
+
+/// Emit a plugin-mode UNKNOWN status line with the provided thresholds
+fn emit_unknown(warning: Option<f64>, critical: Option<f64>) {
+    let warn_str = warning.map(|v| v.to_string()).unwrap_or_default();
+    let crit_str = critical.map(|v| v.to_string()).unwrap_or_default();
+    println!(
+        "RKIK UNKNOWN - request failed | offset_ms=;{};{};0; rtt_ms=;;;0;",
+        warn_str, crit_str
+    );
 }
 
 fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool, verbose: bool) {
