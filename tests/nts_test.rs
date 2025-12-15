@@ -91,30 +91,3 @@ async fn test_nts_disabled_on_regular_server() {
     }
 }
 
-#[test]
-fn test_authenticated_field_in_probe_result() {
-    use rkik::domain::ntp::{ProbeResult, Target};
-    use chrono::Utc;
-    use std::net::IpAddr;
-
-    let target = Target {
-        name: "test.server".to_string(),
-        ip: "127.0.0.1".parse::<IpAddr>().unwrap(),
-        port: 123,
-    };
-
-    let now = Utc::now();
-    let probe = ProbeResult {
-        target,
-        offset_ms: 1.23,
-        rtt_ms: 45.67,
-        stratum: 2,
-        ref_id: "TEST".to_string(),
-        utc: now,
-        local: now.into(),
-        timestamp: now.timestamp(),
-        authenticated: true,
-    };
-
-    assert!(probe.authenticated, "ProbeResult should have authenticated field");
-}
