@@ -1,58 +1,83 @@
-use clap::{Parser, ValueEnum};
-use console::{Term, set_colors_enabled, style};
-#[cfg(feature = "sync")]
-use rkik::sync::{SyncError, get_sys_permissions, sync_from_probe};
-use std::io::{self, IsTerminal, Write};
-use std::process;
-use std::time::Duration;
-use tokio::signal;
+#[path = "rkik/config_store.rs"]
+mod config_store;
+#[path = "rkik/legacy.rs"]
+mod legacy;
 
-use rkik::{
-    ProbeResult, RkikError, compare_many, fmt, query_one,
-    stats::{Stats, compute_stats},
-    tui::{TuiApp, run_tui},
-};
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-use rkik::{
-    PtpProbeResult, PtpQueryOptions, query_many_ptp, query_one_ptp,
-    stats::{PtpStats, compute_ptp_stats},
-};
-use std::collections::HashMap;
-
-#[derive(Debug, Clone, ValueEnum)]
-enum OutputFormat {
-    Text,
-    Json,
-    Simple,
-    JsonShort,
-}
+use clap::{Args as ClapArgs, CommandFactory, Parser, Subcommand, ValueEnum};
+use config_store::{ConfigError, ConfigStore, Defaults, PresetRecord};
+use legacy::{LegacyArgs, OutputFormat};
+use std::env;
+use std::process::{self, Command as ProcessCommand};
 
 #[derive(Parser, Debug)]
 #[command(name = "rkik")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")]
-struct Args {
-    /// Query a single NTP server (optional)
-    #[arg(short, long)]
-    server: Option<String>,
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
 
-    /// Compare multiple servers
-    #[arg(short = 'C', long, num_args = 2..)]
-    compare: Option<Vec<String>>,
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Run a standard NTP probe loop
+    Ntp(NtpCommand),
+    /// Compare multiple servers concurrently
+    Compare(CompareCommand),
+    /// Run PTP queries (Linux only)
+    #[cfg(all(feature = "ptp", target_os = "linux"))]
+    Ptp(PtpCommand),
+    /// One-shot synchronization workflow
+    #[cfg(feature = "sync")]
+    Sync(SyncCommand),
+    /// Diagnostic helpers for a single target
+    Diag(DiagCommand),
+    /// Inspect or update rkik configuration
+    #[command(subcommand)]
+    Config(ConfigCommand),
+    /// Manage reusable presets
+    #[command(subcommand)]
+    Preset(PresetCommand),
+}
 
-    /// Show detailed output
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct ProbeOptions {
+    /// Number of requests to perform
+    #[arg(short = 'c', long, value_name = "COUNT")]
+    count: Option<u32>,
+
+    /// Interval between requests (s)
+    #[arg(short = 'i', long, value_name = "SECONDS")]
+    interval: Option<f64>,
+
+    /// Timeout per request (s)
+    #[arg(long, value_name = "SECONDS")]
+    timeout: Option<f64>,
+
+    /// Run until Ctrl+C
+    #[arg(short = '8', long)]
+    infinite: bool,
+
+    /// Force IPv6 resolution
+    #[arg(short = '6', long)]
+    ipv6: bool,
+}
+
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct OutputOptions {
+    /// Verbose / human-friendly output
     #[arg(short = 'v', long)]
-    pub verbose: bool,
+    verbose: bool,
 
-    /// Output format: text or json
-    #[arg(short = 'f', long, default_value = "text", value_enum)]
-    format: OutputFormat,
+    /// Output format
+    #[arg(short = 'f', long, value_enum)]
+    format: Option<OutputFormat>,
 
-    /// Alias for JSON output
+    /// Shortcut for --format json
     #[arg(short = 'j', long)]
     json: bool,
 
-    /// Alias for simple / short text output
+    /// Shortcut for --format simple
     #[arg(short = 'S', long)]
     short: bool,
 
@@ -60,1112 +85,594 @@ struct Args {
     #[arg(short = 'p', long)]
     pretty: bool,
 
-    /// Disable colored output
+    /// Disable colors
     #[arg(long = "no-color", alias = "nocolor")]
     no_color: bool,
+}
 
-    /// Use IPv6 resolution only
-    #[arg(short = '6', long)]
-    ipv6: bool,
-
-    /// Timeout in seconds
-    #[arg(long, default_value_t = 5.0)]
-    timeout: f64,
-
-    /// Enable one-shot system clock synchronization (requires root)
-    #[cfg(feature = "sync")]
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct PluginOptions {
+    /// Emit Centreon/Nagios plugin output
     #[arg(long)]
-    pub sync: bool,
+    plugin: bool,
 
-    /// Flag to cancel synchronisation (for testing)
-    #[cfg(feature = "sync")]
-    #[arg(short = '0', long = "dry-run")]
-    pub dry_run: bool,
+    /// Warning threshold (ms for NTP, ns for PTP)
+    #[arg(long, requires = "plugin", value_name = "WARN")]
+    warning: Option<f64>,
 
-    /// Positional server name or IP (can include port specification) - Examples: [time.google.com, [2001:4860:4860::8888]:123, 192.168.1.23:123]
-    #[arg(index = 1)]
-    target: Option<String>,
+    /// Critical threshold (ms for NTP, ns for PTP)
+    #[arg(long, requires = "plugin", value_name = "CRIT")]
+    critical: Option<f64>,
+}
 
-    /// Infinite count mode
-    #[arg(short = '8', long)]
-    infinite: bool,
-
-    /// Interval between queries in seconds (only with --infinite or --count)
-    #[arg(short = 'i', long, default_value_t = 1.0)]
-    interval: f64,
-
-    /// Specific count of requests
-    #[arg(short = 'c', long, default_value_t = 1)]
-    count: u32,
-
-    /// Enable NTS (Network Time Security) authentication
-    #[cfg(feature = "nts")]
+#[cfg(feature = "nts")]
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct NtsOptions {
+    /// Enable Network Time Security
     #[arg(long)]
-    pub nts: bool,
+    nts: bool,
 
-    /// NTS-KE (Key Exchange) port number
-    #[cfg(feature = "nts")]
+    /// NTS-KE port
     #[arg(long, default_value_t = 4460)]
-    pub nts_port: u16,
+    nts_port: u16,
+}
 
-    /// Enable Precision Time Protocol mode (only available on Linux)
-    #[cfg(all(feature = "ptp", target_os = "linux"))]
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct NtpCommand {
+    #[command(flatten)]
+    common: ProbeOptions,
+
+    #[command(flatten)]
+    output: OutputOptions,
+
+    #[command(flatten)]
+    plugin: PluginOptions,
+
+    #[cfg(feature = "nts")]
+    #[command(flatten)]
+    nts: NtsOptions,
+
+    /// Target host (hostname or IP)
+    #[arg(value_name = "TARGET")]
+    target: Option<String>,
+}
+
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct CompareCommand {
+    #[command(flatten)]
+    common: ProbeOptions,
+
+    #[command(flatten)]
+    output: OutputOptions,
+
+    #[cfg(feature = "nts")]
+    #[command(flatten)]
+    nts: NtsOptions,
+
+    /// Servers to compare
+    #[arg(value_name = "TARGET", num_args = 2..)]
+    targets: Vec<String>,
+}
+
+#[cfg(feature = "sync")]
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct SyncCommand {
+    #[command(flatten)]
+    common: ProbeOptions,
+
+    #[command(flatten)]
+    output: OutputOptions,
+
+    /// Skip actually setting the time
+    #[arg(long = "dry-run")]
+    dry_run: bool,
+
+    /// Target to synchronize with
+    #[arg(value_name = "TARGET")]
+    target: String,
+}
+
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct DiagCommand {
+    #[command(flatten)]
+    common: ProbeOptions,
+
+    /// Target to diagnose
+    #[arg(value_name = "TARGET")]
+    target: String,
+}
+
+#[cfg(all(feature = "ptp", target_os = "linux"))]
+#[derive(ClapArgs, Debug, Clone, Default)]
+struct PtpCommand {
+    #[command(flatten)]
+    common: ProbeOptions,
+
+    #[command(flatten)]
+    output: OutputOptions,
+
+    #[command(flatten)]
+    plugin: PluginOptions,
+
+    /// Target grandmaster/bridge
+    #[arg(value_name = "TARGET")]
+    target: String,
+
+    /// PTP domain
+    #[arg(long, default_value_t = 0)]
+    domain: u8,
+
+    /// Event port (UDP)
+    #[arg(long, default_value_t = 319)]
+    event_port: u16,
+
+    /// General port (UDP)
+    #[arg(long, default_value_t = 320)]
+    general_port: u16,
+
+    /// Request hardware timestamping
     #[arg(long)]
-    pub ptp: bool,
+    hw_timestamp: bool,
+}
 
-    /// PTP domain number
-    #[cfg(all(feature = "ptp", target_os = "linux"))]
-    #[arg(long, default_value_t = 0, requires = "ptp")]
-    pub ptp_domain: u8,
+#[derive(Subcommand, Debug)]
+enum ConfigCommand {
+    /// Show the configuration file path
+    Path,
+    /// List stored defaults
+    List,
+    /// Get default value
+    Get {
+        #[arg(value_enum)]
+        key: ConfigKey,
+    },
+    /// Set default value
+    Set {
+        #[arg(value_enum)]
+        key: ConfigKey,
+        value: String,
+    },
+    /// Clear a default value
+    Clear {
+        #[arg(value_enum)]
+        key: ConfigKey,
+    },
+}
 
-    /// PTP event port
-    #[cfg(all(feature = "ptp", target_os = "linux"))]
-    #[arg(long, default_value_t = 319, requires = "ptp")]
-    pub ptp_event_port: u16,
+#[derive(Subcommand, Debug)]
+enum PresetCommand {
+    /// List saved presets
+    List,
+    /// Store a preset from trailing arguments (use -- to separate)
+    Add {
+        name: String,
+        #[arg(trailing_var_arg = true, value_name = "ARGS")]
+        args: Vec<String>,
+    },
+    /// Remove a preset
+    Remove { name: String },
+    /// Show stored arguments
+    Show { name: String },
+    /// Execute a preset by spawning rkik with the stored arguments
+    Run { name: String },
+}
 
-    /// PTP general port
-    #[cfg(all(feature = "ptp", target_os = "linux"))]
-    #[arg(long, default_value_t = 320, requires = "ptp")]
-    pub ptp_general_port: u16,
+#[derive(ValueEnum, Clone, Debug)]
+enum ConfigKey {
+    #[value(alias = "default-timeout")]
+    Timeout,
+    #[value(alias = "default-format")]
+    Format,
+    #[value(alias = "default-ipv6")]
+    Ipv6Only,
+}
 
-    /// Request hardware timestamping (simulated)
-    #[cfg(all(feature = "ptp", target_os = "linux"))]
-    #[arg(long, requires = "ptp")]
-    pub ptp_hw_timestamp: bool,
-
-    /// Enable Centreon/Nagios plugin output (produces machine-parseable output and proper exit codes)
-    #[arg(long)]
-    pub plugin: bool,
-
-    /// Warning threshold in ms (requires --plugin)
-    #[arg(long, requires = "plugin", value_name = "MS")]
-    pub warning: Option<f64>,
-
-    /// Critical threshold in ms (requires --plugin)
-    #[arg(long, requires = "plugin", value_name = "MS")]
-    pub critical: Option<f64>,
+enum Mode {
+    Modern,
+    Legacy,
+    Help(Vec<String>),
 }
 
 #[tokio::main]
 async fn main() {
-    let mut args = Args::parse();
-
-    // alias --json
-    if args.json {
-        args.format = OutputFormat::Json;
-    }
-    //alias --short
-    if args.short {
-        args.format = OutputFormat::Simple;
-    }
-    if args.short && args.json {
-        args.format = OutputFormat::JsonShort;
-    }
-    // colors
-    let want_color = (matches!(args.format, OutputFormat::Text)
-        || matches!(args.format, OutputFormat::Simple))
-        && io::stdout().is_terminal()
-        && std::env::var_os("NO_COLOR").is_none()
-        && !args.no_color;
-    set_colors_enabled(want_color);
-
-    let term = Term::stdout();
-    let timeout = Duration::from_secs_f64(args.timeout);
-
-    // Validate thresholds for plugin mode
-    if args.plugin {
-        if let Some(w) = args.warning {
-            if w < 0.0 {
-                term.write_line(&style("--warning must be non-negative").red().to_string())
-                    .ok();
-                let _ = io::stdout().flush();
+    match detect_mode() {
+        Mode::Help(path) => {
+            if let Err(err) = print_help_for(&path) {
+                eprintln!("Error: {}", err);
                 process::exit(2);
             }
         }
-        if let Some(c) = args.critical {
-            if c < 0.0 {
-                term.write_line(&style("--critical must be non-negative").red().to_string())
-                    .ok();
-                let _ = io::stdout().flush();
-                process::exit(2);
-            }
+        Mode::Legacy => {
+            let args = LegacyArgs::parse();
+            legacy::run(args, true).await;
         }
-        if let (Some(w), Some(c)) = (args.warning, args.critical) {
-            if w >= c {
-                term.write_line(
-                    &style("--warning must be less than --critical")
-                        .red()
-                        .to_string(),
-                )
-                .ok();
-                let _ = io::stdout().flush();
+        Mode::Modern => {
+            let mut config = load_config();
+            let cli = Cli::parse();
+            if let Some(cmd) = cli.command {
+                if let Err(err) = dispatch_command(cmd, &mut config).await {
+                    eprintln!("Error: {}", err);
+                    process::exit(1);
+                }
+            } else if let Err(err) = print_help_for(&[]) {
+                eprintln!("Error: {}", err);
                 process::exit(2);
             }
         }
     }
+}
 
-    if args.infinite && args.count != 1 {
-        term.write_line(
-            &style("--infinite cannot be used with --count")
-                .red()
-                .to_string(),
-        )
-        .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
+async fn dispatch_command(cmd: Command, config: &mut ConfigStore) -> Result<(), String> {
+    match cmd {
+        Command::Ntp(opts) => {
+            let legacy_args = build_ntp_args(opts, config.defaults())?;
+            legacy::run(legacy_args, false).await;
+        }
+        Command::Compare(opts) => {
+            if opts.targets.len() < 2 {
+                return Err("Provide at least two targets to compare".into());
+            }
+            let legacy_args = build_compare_args(opts, config.defaults())?;
+            legacy::run(legacy_args, false).await;
+        }
+        #[cfg(all(feature = "ptp", target_os = "linux"))]
+        Command::Ptp(opts) => {
+            let legacy_args = build_ptp_args(opts, config.defaults());
+            legacy::run(legacy_args, false).await;
+        }
+        #[cfg(feature = "sync")]
+        Command::Sync(opts) => {
+            let legacy_args = build_sync_args(opts, config.defaults())?;
+            legacy::run(legacy_args, false).await;
+        }
+        Command::Diag(opts) => {
+            let legacy_args = build_diag_args(opts, config.defaults());
+            legacy::run(legacy_args, false).await;
+        }
+        Command::Config(cmd) => handle_config(cmd, config)?,
+        Command::Preset(cmd) => handle_preset(cmd, config)?,
     }
-    if (matches!(args.format, OutputFormat::Simple)
-        || matches!(args.format, OutputFormat::JsonShort))
-        && args.verbose
+    Ok(())
+}
+
+fn build_ntp_args(cmd: NtpCommand, defaults: &Defaults) -> Result<LegacyArgs, String> {
+    let mut args = LegacyArgs::default();
+    if let Some(target) = cmd.target {
+        args.target = Some(target);
+    } else {
+        return Err("Provide a target (e.g. rkik ntp pool.ntp.org)".into());
+    }
+    apply_probe_options(&mut args, &cmd.common, defaults);
+    apply_output_options(&mut args, &cmd.output, defaults)?;
+    apply_plugin_options(&mut args, &cmd.plugin);
+    #[cfg(feature = "nts")]
     {
-        term.write_line(
-            &style("--verbose has no effect with short format")
-                .yellow()
-                .to_string(),
-        )
-        .ok();
+        args.nts = cmd.nts.nts;
+        args.nts_port = cmd.nts.nts_port;
     }
-    if args.interval != 1.0 && !args.infinite && args.count == 1 {
-        term.write_line(
-            &style("--interval requires --infinite or --count")
-                .red()
-                .to_string(),
-        )
-        .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
-    }
-    #[cfg(all(feature = "ptp", feature = "nts", target_os = "linux"))]
-    if args.ptp && args.nts {
-        term.write_line(
-            &style("--ptp cannot be combined with --nts")
-                .red()
-                .to_string(),
-        )
-        .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
-    }
-    #[cfg(all(feature = "ptp", feature = "sync", target_os = "linux"))]
-    if args.ptp && args.sync {
-        term.write_line(
-            &style("--ptp cannot be combined with --sync")
-                .red()
-                .to_string(),
-        )
-        .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
-    }
-    #[cfg(feature = "sync")]
-    if args.infinite && args.sync {
-        term.write_line(
-            &style("--sync cannot be used with --infinite")
-                .red()
-                .to_string(),
-        )
-        .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
-    }
-
-    // refuse --plugin with --compare for now
-    if args.plugin && args.compare.is_some() {
-        term.write_line(
-            &style("--plugin cannot be used with --compare")
-                .red()
-                .to_string(),
-        )
-        .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
-    }
-
-    // refuse --sync with --compare
-    #[cfg(feature = "sync")]
-    if args.sync && args.compare.is_some() {
-        term.write_line(
-            &style("--sync cannot be used with --compare")
-                .red()
-                .to_string(),
-        )
-        .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
-    }
-
-    #[cfg(all(feature = "ptp", target_os = "linux"))]
-    if args.ptp {
-        let opts = PtpQueryOptions::new(
-            args.ptp_domain,
-            args.ptp_event_port,
-            args.ptp_general_port,
-            args.ptp_hw_timestamp,
-            args.verbose,
-        );
-        let exit_code = run_ptp_mode(&args, &term, timeout, opts).await;
-        let _ = io::stdout().flush();
-        process::exit(exit_code);
-    }
-
-    let exit_code = match (&args.compare, &args.server, &args.target) {
-        (Some(list), _, _) => {
-            // Use TUI mode for compare if --infinite is set and format is text
-            if args.infinite && matches!(args.format, OutputFormat::Text) && !args.verbose {
-                compare_loop_tui(list, &args, timeout).await;
-                return;
-            }
-
-            #[cfg(feature = "nts")]
-            let (use_nts, nts_port) = (args.nts, args.nts_port);
-            #[cfg(not(feature = "nts"))]
-            let (use_nts, nts_port) = (false, 4460u16);
-
-            let mut all: HashMap<String, Vec<ProbeResult>> = HashMap::new();
-            let mut n = 0u32;
-            loop {
-                match compare_many(list, args.ipv6, timeout, use_nts, nts_port).await {
-                    Ok(results) => {
-                        if args.count > 1 || args.infinite {
-                            match args.format {
-                                OutputFormat::Text => {
-                                    if args.verbose {
-                                        output(
-                                            &term,
-                                            &results,
-                                            OutputFormat::Text,
-                                            args.pretty,
-                                            true,
-                                        );
-                                    } else {
-                                        let line = fmt::text::render_short_compare(&results);
-                                        term.write_line(&line).ok();
-                                    }
-                                }
-                                OutputFormat::JsonShort => {
-                                    for r in &results {
-                                        match fmt::json::probe_to_short_json(r) {
-                                            Ok(s) => println!("{}", s),
-                                            Err(e) => eprintln!("error serializing: {}", e),
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    output(
-                                        &term,
-                                        &results,
-                                        args.format.clone(),
-                                        args.pretty,
-                                        args.verbose,
-                                    );
-                                }
-                            }
-                        } else {
-                            output(
-                                &term,
-                                &results,
-                                args.format.clone(),
-                                args.pretty,
-                                args.verbose,
-                            );
-                        }
-                        for r in results {
-                            all.entry(r.target.name.clone()).or_default().push(r);
-                        }
-                    }
-                    Err(e) => {
-                        let code = handle_error(&term, e);
-                        let _ = io::stdout().flush();
-                        process::exit(code);
-                    }
-                }
-                n += 1;
-                if !args.infinite && n >= args.count {
-                    break;
-                }
-                if args.infinite {
-                    let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
-                    tokio::select! {
-                        _ = sleep => {},
-                        _ = signal::ctrl_c() => { break; }
-                    }
-                } else {
-                    tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
-                }
-            }
-
-            if all.values().map(|v| v.len()).sum::<usize>() > list.len() {
-                let mut stats_list: Vec<(String, Stats)> = all
-                    .into_iter()
-                    .map(|(name, vals)| (name, compute_stats(&vals)))
-                    .collect();
-                stats_list.sort_by(|a, b| a.0.cmp(&b.0));
-                match args.format {
-                    OutputFormat::Json => {
-                        match fmt::json::stats_list_to_json(&stats_list, args.pretty) {
-                            Ok(s) => println!("{}", s),
-                            Err(e) => eprintln!("error serializing: {}", e),
-                        }
-                    }
-                    _ => {
-                        for (name, st) in &stats_list {
-                            let line = fmt::text::render_stats(name, st);
-                            term.write_line(&line).ok();
-                        }
-                        let min = stats_list
-                            .iter()
-                            .map(|(_, s)| s.offset_avg)
-                            .fold(f64::INFINITY, f64::min);
-                        let max = stats_list
-                            .iter()
-                            .map(|(_, s)| s.offset_avg)
-                            .fold(f64::NEG_INFINITY, f64::max);
-                        let drift = max - min;
-                        let _ = term.write_line(&format!("Max avg drift: {:.3} ms", drift));
-                    }
-                }
-            }
-            0
-        }
-        (_, Some(server), _) => {
-            query_loop(server, &args, &term, timeout).await;
-            0
-        }
-        (_, None, Some(pos)) => {
-            query_loop(pos, &args, &term, timeout).await;
-            0
-        }
-        _ => {
-            term.write_line(
-                &style("Error: Provide either a server, a positional argument, or --compare")
-                    .red()
-                    .bold()
-                    .to_string(),
-            )
-            .ok();
-            1
-        }
-    };
-
-    let _ = io::stdout().flush();
-    process::exit(exit_code);
+    Ok(args)
 }
 
-async fn compare_loop_tui(list: &[String], args: &Args, timeout: Duration) {
+fn build_compare_args(cmd: CompareCommand, defaults: &Defaults) -> Result<LegacyArgs, String> {
+    if cmd.targets.len() < 2 {
+        return Err("Comparison requires at least two targets".into());
+    }
+    let mut args = LegacyArgs::default();
+    args.compare = Some(cmd.targets);
+    apply_probe_options(&mut args, &cmd.common, defaults);
+    apply_output_options(&mut args, &cmd.output, defaults)?;
     #[cfg(feature = "nts")]
-    let (use_nts, nts_port) = (args.nts, args.nts_port);
-    #[cfg(not(feature = "nts"))]
-    let (use_nts, nts_port) = (false, 4460u16);
-
-    let interval = Duration::from_secs_f64(args.interval);
-    let mut tui_app = TuiApp::new(list.to_vec());
-
-    // Channel to communicate between async query task and TUI
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Vec<Result<ProbeResult, String>>>();
-
-    // Spawn async query task
-    let list_clone = list.to_vec();
-    let ipv6 = args.ipv6;
-    tokio::spawn(async move {
-        loop {
-            let mut cycle_results = Vec::new();
-
-            match compare_many(&list_clone, ipv6, timeout, use_nts, nts_port).await {
-                Ok(results) => {
-                    for res in results {
-                        cycle_results.push(Ok(res));
-                    }
-                }
-                Err(e) => {
-                    // Send error for all servers
-                    for server in &list_clone {
-                        cycle_results.push(Err(format!("{}: {}", server, e)));
-                    }
-                }
-            }
-
-            if tx.send(cycle_results).is_err() {
-                break;
-            }
-
-            tokio::time::sleep(interval).await;
-        }
-    });
-
-    let _ = run_tui(&mut tui_app, |app| {
-        // Check for new results
-        while let Ok(cycle_results) = rx.try_recv() {
-            app.start_new_cycle();
-
-            for result in cycle_results {
-                match result {
-                    Ok(res) => {
-                        app.update_server(&res.target.name, &res);
-                    }
-                    Err(err_msg) => {
-                        // Extract server name from error message
-                        if let Some(server_name) = err_msg.split(':').next() {
-                            app.update_server_error(server_name, err_msg.clone());
-                        }
-                    }
-                }
-            }
-        }
-        Ok(true)
-    });
-}
-
-async fn query_loop_tui(target: &str, args: &Args, timeout: Duration) {
-    #[cfg(feature = "nts")]
-    let (use_nts, nts_port) = (args.nts, args.nts_port);
-    #[cfg(not(feature = "nts"))]
-    let (use_nts, nts_port) = (false, 4460u16);
-
-    let interval = Duration::from_secs_f64(args.interval);
-    let mut tui_app = TuiApp::new(vec![target.to_string()]);
-
-    // We need to run TUI in a blocking context, so we'll use a channel
-    // to communicate between the async query task and the TUI
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Option<ProbeResult>>();
-
-    // Spawn async query task
-    let target_clone = target.to_string();
-    let ipv6 = args.ipv6;
-    tokio::spawn(async move {
-        loop {
-            match query_one(&target_clone, ipv6, timeout, use_nts, nts_port).await {
-                Ok(res) => {
-                    if tx.send(Some(res)).is_err() {
-                        break;
-                    }
-                }
-                Err(_) => {
-                    if tx.send(None).is_err() {
-                        break;
-                    }
-                }
-            }
-            tokio::time::sleep(interval).await;
-        }
-    });
-
-    let _ = run_tui(&mut tui_app, |app| {
-        // Check for new results
-        while let Ok(result_opt) = rx.try_recv() {
-            match result_opt {
-                Some(res) => {
-                    app.update_server(&res.target.name, &res);
-                }
-                None => {
-                    app.update_server_error(target, "Query failed".to_string());
-                }
-            }
-            app.start_new_cycle();
-        }
-        Ok(true)
-    });
-}
-
-async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
-    // Use TUI mode if --infinite is set and output is text
-    if args.infinite && matches!(args.format, OutputFormat::Text) && !args.verbose && !args.plugin {
-        query_loop_tui(target, args, timeout).await;
-        return;
+    {
+        args.nts = cmd.nts.nts;
+        args.nts_port = cmd.nts.nts_port;
     }
-
-    let mut all = Vec::new();
-    let mut n = 0u32;
-
-    #[cfg(feature = "nts")]
-    let (use_nts, nts_port) = (args.nts, args.nts_port);
-    #[cfg(not(feature = "nts"))]
-    let (use_nts, nts_port) = (false, 4460u16);
-
-    loop {
-        match query_one(target, args.ipv6, timeout, use_nts, nts_port).await {
-            Ok(res) => {
-                // In plugin mode we suppress the regular human-readable output and only
-                // collect results to produce the plugin line at the end.
-                if !args.plugin {
-                    if args.count > 1 || args.infinite {
-                        let format = args.format.clone();
-                        match format {
-                            OutputFormat::Text => {
-                                if args.verbose {
-                                    output(
-                                        term,
-                                        std::slice::from_ref(&res),
-                                        OutputFormat::Text,
-                                        args.pretty,
-                                        true,
-                                    );
-                                } else {
-                                    let line = fmt::text::render_short_probe(&res);
-                                    term.write_line(&line).ok();
-                                }
-                            }
-                            OutputFormat::JsonShort => match fmt::json::probe_to_short_json(&res) {
-                                Ok(s) => println!("{}", s),
-                                Err(e) => eprintln!("error serializing: {}", e),
-                            },
-
-                            _ => {
-                                output(
-                                    term,
-                                    std::slice::from_ref(&res),
-                                    format,
-                                    args.pretty,
-                                    args.verbose,
-                                );
-                            }
-                        }
-                    } else {
-                        output(
-                            term,
-                            std::slice::from_ref(&res),
-                            args.format.clone(),
-                            args.pretty,
-                            args.verbose,
-                        );
-                    }
-                }
-                all.push(res);
-            }
-            Err(e) => {
-                if args.plugin {
-                    // Plugin mode: report UNKNOWN and exit with code 3
-                    emit_unknown(args.warning, args.critical);
-                    let _ = io::stdout().flush();
-                    process::exit(3);
-                }
-                let code = handle_error(term, e);
-                let _ = io::stdout().flush();
-                process::exit(code);
-            }
-        }
-        n += 1;
-        if !args.infinite && n >= args.count {
-            break;
-        }
-        if args.infinite {
-            let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
-            tokio::select! {
-                _ = sleep => {},
-                _ = signal::ctrl_c() => { break; }
-            }
-        } else {
-            tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
-        }
-    }
-
-    if all.len() > 1 && !args.plugin {
-        let stats = compute_stats(&all);
-        let format = args.format.clone();
-        match format {
-            OutputFormat::Json => {
-                match fmt::json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
-                    Ok(s) => println!("{}", s),
-                    Err(e) => eprintln!("error serializing: {}", e),
-                }
-            }
-            _ => {
-                let line = fmt::text::render_stats(&all[0].target.name, &stats);
-                term.write_line(&line).ok();
-            }
-        }
-    }
-
-    // Plugin mode: produce Centreon/Nagios compatible output and exit with proper code
-    if args.plugin {
-        if all.is_empty() {
-            emit_unknown(args.warning, args.critical);
-            let _ = io::stdout().flush();
-            process::exit(3);
-        }
-
-        let stats = compute_stats(&all);
-        let offset = stats.offset_avg;
-        let rtt = stats.rtt_avg;
-        let host = &all[0].target.name;
-        let ip = &all[0].target.ip;
-
-        let warn_str = args.warning.map(|v| v.to_string()).unwrap_or_default();
-        let crit_str = args.critical.map(|v| v.to_string()).unwrap_or_default();
-
-        let abs_offset = offset.abs();
-        let mut exit_code = 0i32;
-        if let Some(c) = args.critical {
-            if abs_offset >= c {
-                exit_code = 2;
-            }
-        }
-        if exit_code == 0 {
-            if let Some(w) = args.warning {
-                if abs_offset >= w {
-                    exit_code = 1;
-                }
-            }
-        }
-
-        let state = match exit_code {
-            0 => "OK",
-            1 => "WARNING",
-            2 => "CRITICAL",
-            _ => "UNKNOWN",
-        };
-
-        println!(
-            "RKIK {} - offset {:.3}ms rtt {:.3}ms from {} ({}) | offset_ms={:.3}ms;{};{};0; rtt_ms={:.3}ms;;;0;",
-            state, offset, rtt, host, ip, offset, warn_str, crit_str, rtt
-        );
-
-        let _ = io::stdout().flush();
-        process::exit(exit_code);
-    }
-
-    #[cfg(feature = "sync")]
-    if args.sync {
-        let mut no_sync = false;
-        if !get_sys_permissions() | args.dry_run {
-            no_sync = true;
-        }
-        let probe = average_probe(&all);
-
-        match sync_from_probe(&probe, no_sync) {
-            Ok(()) => {
-                if !get_sys_permissions() {
-                    let _ = term
-                        .write_line(&style("Error: need root or CAP_SYS_TIME").red().to_string());
-                } else if args.dry_run {
-                    let _ = term.write_line(&style("Sync skipped (dry-run)").yellow().to_string());
-                } else if args.count <= 1 {
-                    let _ = term.write_line(&style("Sync applied").green().to_string());
-                } else {
-                    let _ = term.write_line(
-                        &style(format!(
-                            "Average offset Sync applied : {:.3} ms",
-                            probe.offset_ms
-                        ))
-                        .green()
-                        .to_string(),
-                    );
-                }
-            }
-            Err(SyncError::Permission(e)) => {
-                term.write_line(&style(format!("Error: {}", e)).red().to_string())
-                    .ok();
-                let _ = io::stdout().flush();
-                process::exit(12);
-            }
-            Err(SyncError::Sys(e)) => {
-                term.write_line(&style(format!("Error: {}", e)).red().to_string())
-                    .ok();
-                let _ = io::stdout().flush();
-                process::exit(14);
-            }
-            Err(SyncError::NotSupported) => {
-                term.write_line(
-                    &style("Error: sync not supported on this platform")
-                        .red()
-                        .to_string(),
-                )
-                .ok();
-                let _ = io::stdout().flush();
-                process::exit(15);
-            }
-        }
-    }
-}
-
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-async fn run_ptp_mode(args: &Args, term: &Term, timeout: Duration, opts: PtpQueryOptions) -> i32 {
-    match (&args.compare, &args.server, &args.target) {
-        (Some(list), _, _) => ptp_compare_loop(list, args, term, timeout, &opts).await,
-        (_, Some(server), _) => {
-            ptp_query_loop(server, args, term, timeout, &opts).await;
-            0
-        }
-        (_, None, Some(pos)) => {
-            ptp_query_loop(pos, args, term, timeout, &opts).await;
-            0
-        }
-        _ => {
-            term.write_line(
-                &style("Error: Provide either a server, a positional argument, or --compare")
-                    .red()
-                    .bold()
-                    .to_string(),
-            )
-            .ok();
-            1
-        }
-    }
-}
-
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-async fn ptp_query_loop(
-    target: &str,
-    args: &Args,
-    term: &Term,
-    timeout: Duration,
-    opts: &PtpQueryOptions,
-) {
-    let mut all = Vec::new();
-    let mut n = 0u32;
-    loop {
-        match query_one_ptp(target, args.ipv6, timeout, opts).await {
-            Ok(res) => {
-                if !args.plugin {
-                    if args.count > 1 || args.infinite {
-                        let format = args.format.clone();
-                        match format {
-                            OutputFormat::Text => {
-                                if args.verbose {
-                                    output_ptp(
-                                        term,
-                                        std::slice::from_ref(&res),
-                                        OutputFormat::Text,
-                                        args.pretty,
-                                        true,
-                                    );
-                                } else {
-                                    let line = fmt::ptp_text::render_short_probe(&res);
-                                    term.write_line(&line).ok();
-                                }
-                            }
-                            OutputFormat::JsonShort => {
-                                match fmt::ptp_json::probe_to_short_json(&res) {
-                                    Ok(s) => println!("{}", s),
-                                    Err(e) => eprintln!("error serializing: {}", e),
-                                }
-                            }
-                            _ => {
-                                output_ptp(
-                                    term,
-                                    std::slice::from_ref(&res),
-                                    format,
-                                    args.pretty,
-                                    args.verbose,
-                                );
-                            }
-                        }
-                    } else {
-                        output_ptp(
-                            term,
-                            std::slice::from_ref(&res),
-                            args.format.clone(),
-                            args.pretty,
-                            args.verbose,
-                        );
-                    }
-                }
-                all.push(res);
-            }
-            Err(e) => {
-                if args.plugin {
-                    emit_ptp_unknown(args.warning, args.critical);
-                    let _ = io::stdout().flush();
-                    process::exit(3);
-                }
-                let code = handle_error(term, e);
-                let _ = io::stdout().flush();
-                process::exit(code);
-            }
-        }
-        n += 1;
-        if !args.infinite && n >= args.count {
-            break;
-        }
-        if args.infinite {
-            let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
-            tokio::select! {
-                _ = sleep => {},
-                _ = signal::ctrl_c() => { break; }
-            }
-        } else {
-            tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
-        }
-    }
-
-    if all.len() > 1 && !args.plugin {
-        let stats = compute_ptp_stats(&all);
-        match args.format {
-            OutputFormat::Json => {
-                match fmt::ptp_json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
-                    Ok(s) => println!("{}", s),
-                    Err(e) => eprintln!("error serializing: {}", e),
-                }
-            }
-            _ => {
-                let line = fmt::ptp_text::render_stats(&all[0].target.name, &stats);
-                term.write_line(&line).ok();
-            }
-        }
-    }
-
-    if args.plugin {
-        if all.is_empty() {
-            emit_ptp_unknown(args.warning, args.critical);
-            let _ = io::stdout().flush();
-            process::exit(3);
-        }
-        let stats = compute_ptp_stats(&all);
-        let probe = &all[0];
-        let exit_code = emit_ptp_plugin(&stats, probe, args);
-        let _ = io::stdout().flush();
-        process::exit(exit_code);
-    }
-}
-
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-async fn ptp_compare_loop(
-    list: &[String],
-    args: &Args,
-    term: &Term,
-    timeout: Duration,
-    opts: &PtpQueryOptions,
-) -> i32 {
-    let mut all: HashMap<String, Vec<PtpProbeResult>> = HashMap::new();
-    let mut n = 0u32;
-    loop {
-        match query_many_ptp(list, args.ipv6, timeout, opts).await {
-            Ok(results) => {
-                if args.count > 1 || args.infinite {
-                    match args.format {
-                        OutputFormat::Text => {
-                            if args.verbose {
-                                output_ptp(term, &results, OutputFormat::Text, args.pretty, true);
-                            } else {
-                                let line = fmt::ptp_text::render_short_compare(&results);
-                                term.write_line(&line).ok();
-                            }
-                        }
-                        OutputFormat::JsonShort => {
-                            for r in &results {
-                                match fmt::ptp_json::probe_to_short_json(r) {
-                                    Ok(s) => println!("{}", s),
-                                    Err(e) => eprintln!("error serializing: {}", e),
-                                }
-                            }
-                        }
-                        _ => {
-                            output_ptp(
-                                term,
-                                &results,
-                                args.format.clone(),
-                                args.pretty,
-                                args.verbose,
-                            );
-                        }
-                    }
-                } else {
-                    output_ptp(
-                        term,
-                        &results,
-                        args.format.clone(),
-                        args.pretty,
-                        args.verbose,
-                    );
-                }
-                for res in results {
-                    all.entry(res.target.name.clone()).or_default().push(res);
-                }
-            }
-            Err(e) => {
-                let code = handle_error(term, e);
-                let _ = io::stdout().flush();
-                process::exit(code);
-            }
-        }
-        n += 1;
-        if !args.infinite && n >= args.count {
-            break;
-        }
-        if args.infinite {
-            let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
-            tokio::select! {
-                _ = sleep => {},
-                _ = signal::ctrl_c() => { break; }
-            }
-        } else {
-            tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
-        }
-    }
-
-    if all.values().map(|v| v.len()).sum::<usize>() > list.len() {
-        let mut stats_list: Vec<(String, PtpStats)> = all
-            .into_iter()
-            .map(|(name, vals)| (name, compute_ptp_stats(&vals)))
-            .collect();
-        stats_list.sort_by(|a, b| a.0.cmp(&b.0));
-        match args.format {
-            OutputFormat::Json => {
-                match fmt::ptp_json::stats_list_to_json(&stats_list, args.pretty) {
-                    Ok(s) => println!("{}", s),
-                    Err(e) => eprintln!("error serializing: {}", e),
-                }
-            }
-            _ => {
-                for (name, st) in &stats_list {
-                    let line = fmt::ptp_text::render_stats(name, st);
-                    term.write_line(&line).ok();
-                }
-            }
-        }
-    }
-    0
-}
-
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-fn emit_ptp_unknown(warning: Option<f64>, critical: Option<f64>) {
-    let warn_str = warning.map(|v| v.to_string()).unwrap_or_default();
-    let crit_str = critical.map(|v| v.to_string()).unwrap_or_default();
-    println!(
-        "RKIK UNKNOWN - PTP request failed | offset_ns=;{};{};0; delay_ns=;;;0;",
-        warn_str, crit_str
-    );
-}
-
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-fn emit_ptp_plugin(stats: &PtpStats, probe: &PtpProbeResult, args: &Args) -> i32 {
-    let warn_str = args.warning.map(|v| v.to_string()).unwrap_or_default();
-    let crit_str = args.critical.map(|v| v.to_string()).unwrap_or_default();
-    let offset = stats.offset_avg_ns;
-    let delay = stats.mean_path_delay_avg_ns;
-    let host = &probe.target.name;
-    let ip = &probe.target.ip;
-
-    let mut exit_code = 0i32;
-    if let Some(c) = args.critical {
-        if offset.abs() >= c {
-            exit_code = 2;
-        }
-    }
-    if exit_code == 0 {
-        if let Some(w) = args.warning {
-            if offset.abs() >= w {
-                exit_code = 1;
-            }
-        }
-    }
-
-    let state = match exit_code {
-        0 => "OK",
-        1 => "WARNING",
-        2 => "CRITICAL",
-        _ => "UNKNOWN",
-    };
-
-    println!(
-        "RKIK {state} - offset {offset:.0}ns delay {delay:.0}ns from {host} ({ip}) | offset_ns={offset:.0}ns;{warn};{crit};0; delay_ns={delay:.0}ns;;;0;",
-        state = state,
-        offset = offset,
-        delay = delay,
-        host = host,
-        ip = ip,
-        warn = warn_str,
-        crit = crit_str
-    );
-
-    exit_code
-}
-
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-fn output_ptp(
-    term: &Term,
-    results: &[PtpProbeResult],
-    fmt: OutputFormat,
-    pretty: bool,
-    verbose: bool,
-) {
-    match fmt {
-        OutputFormat::Text => {
-            if results.len() == 1 {
-                let s = fmt::ptp_text::render_probe(&results[0], verbose);
-                term.write_line(&s).ok();
-            } else {
-                let s = fmt::ptp_text::render_compare(results, verbose);
-                term.write_line(&s).ok();
-            }
-        }
-        OutputFormat::Json => match fmt::ptp_json::to_json(results, pretty, verbose) {
-            Ok(s) => println!("{}", s),
-            Err(e) => eprintln!("error serializing: {}", e),
-        },
-        OutputFormat::JsonShort => match fmt::ptp_json::to_short_json(results, pretty) {
-            Ok(s) => println!("{}", s),
-            Err(e) => eprintln!("error serializing: {}", e),
-        },
-        OutputFormat::Simple => {
-            if results.len() == 1 {
-                let s = fmt::ptp_text::render_simple_probe(&results[0]);
-                term.write_line(&s).ok();
-            } else {
-                let s = fmt::ptp_text::render_simple_compare(results);
-                term.write_line(&s).ok();
-            }
-        }
-    }
-}
-
-/// Emit a plugin-mode UNKNOWN status line with the provided thresholds
-fn emit_unknown(warning: Option<f64>, critical: Option<f64>) {
-    let warn_str = warning.map(|v| v.to_string()).unwrap_or_default();
-    let crit_str = critical.map(|v| v.to_string()).unwrap_or_default();
-    println!(
-        "RKIK UNKNOWN - request failed | offset_ms=;{};{};0; rtt_ms=;;;0;",
-        warn_str, crit_str
-    );
-}
-
-fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool, verbose: bool) {
-    match fmt {
-        OutputFormat::Text => {
-            if results.len() == 1 {
-                let s = fmt::text::render_probe(&results[0], verbose);
-                term.write_line(&s).ok();
-            } else {
-                let s = fmt::text::render_compare(results, verbose);
-                term.write_line(&s).ok();
-            }
-        }
-        OutputFormat::Json => match fmt::json::to_json(results, pretty, verbose) {
-            Ok(s) => println!("{}", s),
-            Err(e) => eprintln!("error serializing: {}", e),
-        },
-        OutputFormat::JsonShort => match fmt::json::to_short_json(results, pretty) {
-            Ok(s) => println!("{}", s),
-            Err(e) => eprintln!("error serializing: {}", e),
-        },
-        OutputFormat::Simple => {
-            if results.len() == 1 {
-                let s = fmt::text::render_simple_probe(&results[0]);
-                term.write_line(&s).ok();
-            } else {
-                let s = fmt::text::render_simple_compare(results);
-                term.write_line(&s).ok();
-            }
-        }
-    }
-}
-
-fn handle_error(term: &Term, err: RkikError) -> i32 {
-    term.write_line(&style(format!("Error: {}", err)).red().to_string())
-        .ok();
-    match err {
-        RkikError::Dns(_) => 2,
-        RkikError::Network(ref s) if s == "timeout" => 3,
-        _ => 1,
-    }
+    Ok(args)
 }
 
 #[cfg(feature = "sync")]
-fn average_probe(results: &[ProbeResult]) -> ProbeResult {
-    let mut avg = results.last().cloned().unwrap();
-    avg.offset_ms = results.iter().map(|r| r.offset_ms).sum::<f64>() / results.len() as f64;
-    avg.rtt_ms = results.iter().map(|r| r.rtt_ms).sum::<f64>() / results.len() as f64;
-    if let Some(min_stratum) = results.iter().map(|r| r.stratum).min() {
-        avg.stratum = min_stratum;
+fn build_sync_args(cmd: SyncCommand, defaults: &Defaults) -> Result<LegacyArgs, String> {
+    let mut args = LegacyArgs::default();
+    args.target = Some(cmd.target);
+    args.sync = true;
+    args.dry_run = cmd.dry_run;
+    apply_probe_options(&mut args, &cmd.common, defaults);
+    apply_output_options(&mut args, &cmd.output, defaults)?;
+    Ok(args)
+}
+
+fn build_diag_args(cmd: DiagCommand, defaults: &Defaults) -> LegacyArgs {
+    let mut args = LegacyArgs::default();
+    args.target = Some(cmd.target);
+    args.verbose = true;
+    args.count = 1;
+    args.interval = cmd.common.interval.unwrap_or(1.0);
+    args.timeout = cmd.common.timeout.or(defaults.timeout).unwrap_or(5.0);
+    args.ipv6 = cmd.common.ipv6 || defaults.ipv6_only.unwrap_or(false);
+    args.format = OutputFormat::Text;
+    args.pretty = false;
+    args.infinite = false;
+    args.plugin = false;
+    args.no_color = false;
+    args
+}
+
+#[cfg(all(feature = "ptp", target_os = "linux"))]
+fn build_ptp_args(cmd: PtpCommand, defaults: &Defaults) -> LegacyArgs {
+    let mut args = LegacyArgs::default();
+    args.target = Some(cmd.target);
+    args.ptp = true;
+    args.ptp_domain = cmd.domain;
+    args.ptp_event_port = cmd.event_port;
+    args.ptp_general_port = cmd.general_port;
+    args.ptp_hw_timestamp = cmd.hw_timestamp;
+    apply_probe_options(&mut args, &cmd.common, defaults);
+    apply_output_options(&mut args, &cmd.output, defaults).ok();
+    apply_plugin_options(&mut args, &cmd.plugin);
+    args
+}
+
+fn apply_probe_options(args: &mut LegacyArgs, opts: &ProbeOptions, defaults: &Defaults) {
+    args.count = opts.count.unwrap_or(1);
+    args.interval = opts.interval.unwrap_or(1.0);
+    args.timeout = opts.timeout.or(defaults.timeout).unwrap_or(5.0);
+    args.infinite = opts.infinite;
+    args.ipv6 = opts.ipv6 || defaults.ipv6_only.unwrap_or(false);
+}
+
+fn apply_output_options(
+    args: &mut LegacyArgs,
+    opts: &OutputOptions,
+    defaults: &Defaults,
+) -> Result<(), String> {
+    args.verbose = opts.verbose;
+    args.pretty = opts.pretty;
+    args.no_color = opts.no_color;
+    let mut format = opts.format.clone();
+    if format.is_none() {
+        if let Some(cfg_fmt) = parse_default_format(defaults)? {
+            format = Some(cfg_fmt);
+        }
     }
-    avg
+    let mut format = format.unwrap_or(OutputFormat::Text);
+    if opts.json {
+        format = OutputFormat::Json;
+    } else if opts.short {
+        format = OutputFormat::Simple;
+    }
+    args.format = format;
+    Ok(())
+}
+
+fn apply_plugin_options(args: &mut LegacyArgs, opts: &PluginOptions) {
+    args.plugin = opts.plugin;
+    args.warning = opts.warning;
+    args.critical = opts.critical;
+}
+
+fn parse_default_format(defaults: &Defaults) -> Result<Option<OutputFormat>, String> {
+    if let Some(raw) = defaults.format.as_deref() {
+        OutputFormat::from_str(raw, false).map(Some).map_err(|_| {
+            format!(
+                "Invalid default format '{}' in rkik config. Use text, json, json-short, or simple.",
+                raw
+            )
+        })
+    } else {
+        Ok(None)
+    }
+}
+
+fn handle_config(cmd: ConfigCommand, config: &mut ConfigStore) -> Result<(), String> {
+    match cmd {
+        ConfigCommand::Path => {
+            println!("{}", config.path().display());
+        }
+        ConfigCommand::List => {
+            let defaults = config.defaults();
+            println!("timeout = {}", display_opt_float(defaults.timeout));
+            println!(
+                "format = {}",
+                defaults.format.as_deref().unwrap_or("<unset>")
+            );
+            println!(
+                "ipv6_only = {}",
+                defaults
+                    .ipv6_only
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "<unset>".into())
+            );
+        }
+        ConfigCommand::Get { key } => match key {
+            ConfigKey::Timeout => println!("{}", display_opt_float(config.defaults().timeout)),
+            ConfigKey::Format => println!(
+                "{}",
+                config.defaults().format.as_deref().unwrap_or("<unset>")
+            ),
+            ConfigKey::Ipv6Only => println!(
+                "{}",
+                config
+                    .defaults()
+                    .ipv6_only
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "<unset>".into())
+            ),
+        },
+        ConfigCommand::Set { key, value } => {
+            apply_config_value(config, key, Some(value))?;
+            persist_config(config)?;
+        }
+        ConfigCommand::Clear { key } => {
+            apply_config_value(config, key, None)?;
+            persist_config(config)?;
+        }
+    }
+    Ok(())
+}
+
+fn handle_preset(cmd: PresetCommand, config: &mut ConfigStore) -> Result<(), String> {
+    match cmd {
+        PresetCommand::List => {
+            if config.presets().is_empty() {
+                println!("(no presets)");
+            } else {
+                for (name, preset) in config.presets() {
+                    println!("{name}: {}", preset.args.join(" "));
+                }
+            }
+        }
+        PresetCommand::Add { name, args } => {
+            if args.is_empty() {
+                return Err("Provide arguments after --".into());
+            }
+            config.add_preset(name.clone(), args);
+            persist_config(config)?;
+            println!("Preset '{name}' stored");
+        }
+        PresetCommand::Remove { name } => {
+            if config.remove_preset(&name) {
+                persist_config(config)?;
+                println!("Removed preset '{name}'");
+            } else {
+                return Err(format!("Preset '{name}' not found"));
+            }
+        }
+        PresetCommand::Show { name } => match config.preset(&name) {
+            Some(PresetRecord { args }) => println!("{}", args.join(" ")),
+            None => return Err(format!("Preset '{name}' not found")),
+        },
+        PresetCommand::Run { name } => {
+            let preset = config
+                .preset(&name)
+                .ok_or_else(|| format!("Preset '{name}' not found"))?;
+            run_preset(preset)?;
+            return Ok(());
+        }
+    }
+    Ok(())
+}
+
+fn detect_mode() -> Mode {
+    let mut args = env::args_os();
+    args.next(); // skip binary
+    match args.next() {
+        None => Mode::Modern,
+        Some(first) => {
+            let first_str = first.to_string_lossy();
+            if first_str == "help" {
+                let rest = args
+                    .map(|arg| arg.to_string_lossy().into_owned())
+                    .collect::<Vec<_>>();
+                Mode::Help(rest)
+            } else if is_new_keyword(&first_str)
+                || matches!(first_str.as_ref(), "-h" | "--help" | "-V" | "--version")
+            {
+                Mode::Modern
+            } else {
+                Mode::Legacy
+            }
+        }
+    }
+}
+
+fn is_new_keyword(s: &str) -> bool {
+    matches!(
+        s,
+        "ntp" | "compare" | "ptp" | "sync" | "diag" | "config" | "preset"
+    )
+}
+
+fn load_config() -> ConfigStore {
+    match ConfigStore::load() {
+        Ok(store) => store,
+        Err(err) => {
+            eprintln!("Warning: could not load rkik config: {}", err);
+            ConfigStore::empty()
+        }
+    }
+}
+
+fn print_help_for(path: &[String]) -> Result<(), String> {
+    let mut command = Cli::command();
+    if path.is_empty() {
+        command.print_help().map_err(|e| e.to_string())?;
+        println!();
+        return Ok(());
+    }
+
+    let mut current = &mut command;
+    for segment in path {
+        current = current
+            .find_subcommand_mut(segment)
+            .ok_or_else(|| format!("Unknown command '{segment}'"))?;
+    }
+
+    current.print_help().map_err(|e| e.to_string())?;
+    println!();
+    Ok(())
+}
+
+fn apply_config_value(
+    config: &mut ConfigStore,
+    key: ConfigKey,
+    value: Option<String>,
+) -> Result<(), String> {
+    match key {
+        ConfigKey::Timeout => {
+            let parsed = value
+                .as_deref()
+                .map(|v| {
+                    v.parse::<f64>()
+                        .map_err(|_| format!("Invalid timeout: {v}"))
+                })
+                .transpose()?;
+            config.update_timeout(parsed);
+        }
+        ConfigKey::Format => {
+            let parsed = value
+                .as_deref()
+                .map(|v| {
+                    OutputFormat::from_str(v, false)
+                        .map(|fmt| fmt.as_str().to_string())
+                        .map_err(|_| {
+                            "Unknown format. Use text, json, json-short, or simple.".to_string()
+                        })
+                })
+                .transpose()?;
+            config.update_format(parsed);
+        }
+        ConfigKey::Ipv6Only => {
+            let parsed = value
+                .as_deref()
+                .map(|v| v.parse::<bool>().map_err(|_| format!("Invalid bool: {v}")))
+                .transpose()?;
+            config.update_ipv6(parsed);
+        }
+    }
+    Ok(())
+}
+
+fn persist_config(config: &ConfigStore) -> Result<(), String> {
+    config.save().map_err(|e| match e {
+        ConfigError::Io(err) => err.to_string(),
+        ConfigError::Parse(err) => err.to_string(),
+        ConfigError::Invalid(msg) => msg,
+    })
+}
+
+fn run_preset(preset: &PresetRecord) -> Result<(), String> {
+    if preset.args.is_empty() {
+        return Err("Preset is empty".into());
+    }
+    let exe = env::current_exe().map_err(|e| e.to_string())?;
+    let status = ProcessCommand::new(exe)
+        .args(&preset.args)
+        .status()
+        .map_err(|e| e.to_string())?;
+    process::exit(status.code().unwrap_or(1));
+}
+
+fn display_opt_float(value: Option<f64>) -> String {
+    value
+        .map(|v| format!("{:.3}", v))
+        .unwrap_or_else(|| "<unset>".into())
 }
