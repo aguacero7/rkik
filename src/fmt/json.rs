@@ -304,7 +304,7 @@ mod tests {
         );
         let json_verbose = to_json(std::slice::from_ref(&probe), false, true).unwrap();
         assert!(
-            json_verbose.contains("\"timestamp\": 1"),
+            json_verbose.contains("\"timestamp\":1"),
             "timestamp should appear when verbose: {json_verbose}"
         );
     }
