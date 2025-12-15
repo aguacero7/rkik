@@ -1,5 +1,100 @@
 //! Integration tests for NTS (Network Time Security) functionality
 
+#[cfg(feature = "nts")]
+use chrono::{DateTime, Local, NaiveDateTime, Utc};
+#[cfg(feature = "nts")]
+use console::set_colors_enabled;
+#[cfg(feature = "nts")]
+use rkik::adapters::nts_client::NtsKeData;
+#[cfg(feature = "nts")]
+use rkik::fmt;
+#[cfg(feature = "nts")]
+use rkik::{ProbeResult, Target};
+#[cfg(feature = "nts")]
+use std::net::IpAddr;
+
+#[cfg(feature = "nts")]
+fn sample_nts_probe() -> ProbeResult {
+    let naive = NaiveDateTime::from_timestamp_opt(1_700_000_000, 0).unwrap();
+    let utc: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+    let local: DateTime<Local> = DateTime::from(utc);
+    let ip: IpAddr = "127.0.0.1".parse().unwrap();
+
+    ProbeResult {
+        target: Target {
+            name: "nts.test".into(),
+            ip,
+            port: 123,
+        },
+        offset_ms: 1.5,
+        rtt_ms: 0.6,
+        stratum: 1,
+        ref_id: "GPS".into(),
+        utc,
+        local,
+        timestamp: utc.timestamp(),
+        authenticated: true,
+        nts_ke_data: Some(NtsKeData {
+            ke_duration_ms: 12.5,
+            cookie_count: 2,
+            cookie_sizes: vec![48, 64],
+            aead_algorithm: "AEAD_AES_SIV_CMAC_256".into(),
+            ntp_server: "nts.test".into(),
+            certificate: None,
+        }),
+    }
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn nts_text_render_includes_authenticated_markers_and_diagnostics() {
+    set_colors_enabled(false);
+    let probe = sample_nts_probe();
+    let rendered = fmt::text::render_probe(&probe, true);
+    assert!(
+        rendered.contains("[NTS Authenticated]"),
+        "expected authenticated badge in probe output: {}",
+        rendered
+    );
+    assert!(
+        rendered.contains("=== NTS-KE Diagnostics ==="),
+        "expected diagnostics section in verbose probe output: {}",
+        rendered
+    );
+
+    let rendered_compare = fmt::text::render_compare(std::slice::from_ref(&probe), true);
+    assert!(
+        rendered_compare.contains("[NTS]"),
+        "expected NTS badge in compare output: {}",
+        rendered_compare
+    );
+}
+
+#[cfg(all(feature = "nts", feature = "json"))]
+#[test]
+fn nts_json_render_controls_diagnostics_with_verbosity() {
+    let probes = vec![sample_nts_probe()];
+    let compact = fmt::json::to_json(&probes, /* pretty */ false, /* verbose */ false).unwrap();
+    assert!(
+        compact.contains("\"authenticated\":true"),
+        "compact JSON should include authenticated flag: {compact}"
+    );
+    assert!(
+        !compact.contains("nts_ke_data"),
+        "compact JSON should omit NTS-KE diagnostics: {compact}"
+    );
+
+    let verbose = fmt::json::to_json(&probes, /* pretty */ false, /* verbose */ true).unwrap();
+    assert!(
+        verbose.contains("\"nts_ke_data\""),
+        "verbose JSON should include diagnostics: {verbose}"
+    );
+    assert!(
+        verbose.contains("\"cookie_count\":2"),
+        "verbose JSON should serialize NTS-KE fields: {verbose}"
+    );
+}
+
 #[cfg(all(feature = "nts", feature = "network-tests"))]
 #[tokio::test]
 async fn test_nts_query_swedish_server() {

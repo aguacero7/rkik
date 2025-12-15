@@ -12,6 +12,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
+use tokio::time;
 
 use crate::domain::ptp::{
     ClockIdentity, ClockQuality, PacketStats, PortIdentity, PtpDiagnostics, PtpProbeResult,
@@ -30,72 +31,73 @@ pub async fn query_ptp(
     timeout: Duration,
     verbose: bool,
 ) -> Result<PtpProbeResult, RkikError> {
-    // We currently produce a deterministic result and finish well within the
-    // provided timeout. Keeping the calculation lightweight ensures CLI
-    // responsiveness even when probing multiple targets concurrently.
-    let _ = timeout;
-    let start = Instant::now();
-    let seed = build_seed(
-        target_name,
-        ip,
-        domain,
-        event_port,
-        general_port,
-        hw_timestamping,
-    );
-
-    let master_identity = derive_clock_identity(seed);
-    let master_port = PortIdentity {
-        clock_identity: master_identity,
-        port_number: 1,
-    };
-    let clock_quality = derive_clock_quality(seed);
-    let time_source = derive_time_source(seed);
-    let offset_ns = derive_offset(seed);
-    let mean_path_delay_ns = derive_path_delay(seed);
-
-    let utc = Utc::now();
-    let local = Local::now();
-    let timestamp = utc.timestamp();
-
-    let diagnostics = verbose.then(|| PtpDiagnostics {
-        master_port_identity: master_port,
-        hardware_timestamping: hw_timestamping,
-        timestamp_mode: if hw_timestamping {
-            "hardware timestamping (simulated)".to_string()
-        } else {
-            "software timestamping (simulated)".to_string()
-        },
-        steps_removed: ((seed >> 3) % 4) as u16,
-        current_utc_offset: 37,
-        current_utc_offset_valid: true,
-        leap59: false,
-        leap61: false,
-        time_traceable: (seed & 0x1) == 0,
-        frequency_traceable: (seed & 0x2) == 0,
-        ptp_timescale: true,
-        packet_stats: derive_packet_stats(seed),
-        measurement_duration_ms: start.elapsed().as_secs_f64() * 1000.0,
-    });
-
-    Ok(PtpProbeResult {
-        target: PtpTarget {
-            name: target_name.to_string(),
+    // The simulated probe finishes quickly, but we still respect the caller-provided timeout.
+    time::timeout(timeout, async move {
+        let start = Instant::now();
+        let seed = build_seed(
+            target_name,
             ip,
             domain,
             event_port,
             general_port,
-        },
-        offset_ns,
-        mean_path_delay_ns,
-        master_identity,
-        clock_quality,
-        time_source,
-        utc,
-        local,
-        timestamp,
-        diagnostics,
+            hw_timestamping,
+        );
+
+        let master_identity = derive_clock_identity(seed);
+        let master_port = PortIdentity {
+            clock_identity: master_identity,
+            port_number: 1,
+        };
+        let clock_quality = derive_clock_quality(seed);
+        let time_source = derive_time_source(seed);
+        let offset_ns = derive_offset(seed);
+        let mean_path_delay_ns = derive_path_delay(seed);
+
+        let utc = Utc::now();
+        let local = Local::now();
+        let timestamp = utc.timestamp();
+
+        let diagnostics = verbose.then(|| PtpDiagnostics {
+            master_port_identity: master_port,
+            hardware_timestamping: hw_timestamping,
+            timestamp_mode: if hw_timestamping {
+                "hardware timestamping (simulated)".to_string()
+            } else {
+                "software timestamping (simulated)".to_string()
+            },
+            steps_removed: ((seed >> 3) % 4) as u16,
+            current_utc_offset: 37,
+            current_utc_offset_valid: true,
+            leap59: false,
+            leap61: false,
+            time_traceable: (seed & 0x1) == 0,
+            frequency_traceable: (seed & 0x2) == 0,
+            ptp_timescale: true,
+            packet_stats: derive_packet_stats(seed),
+            measurement_duration_ms: start.elapsed().as_secs_f64() * 1000.0,
+        });
+
+        PtpProbeResult {
+            target: PtpTarget {
+                name: target_name.to_string(),
+                ip,
+                domain,
+                event_port,
+                general_port,
+            },
+            offset_ns,
+            mean_path_delay_ns,
+            master_identity,
+            clock_quality,
+            time_source,
+            utc,
+            local,
+            timestamp,
+            diagnostics,
+        }
     })
+    .await
+    .map_err(|_| RkikError::Other(format!("ptp query timed out after {:?}", timeout)))
 }
 
 fn build_seed(
@@ -154,7 +156,7 @@ fn derive_time_source(seed: u64) -> TimeSource {
 }
 
 fn derive_offset(seed: u64) -> i64 {
-    let range = 200_000i64; // +/- 200 us
+    let range = 200_000i64; // +/- 2 ms after converting to nanoseconds
     let raw = (seed as i64 % (range * 2)) - range;
     raw * 10 // convert to nanoseconds
 }
