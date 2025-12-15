@@ -12,12 +12,13 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 ## Features
 
 - Query any NTP server (IPv4 or IPv6)
--  Compare offsets between X servers
--  Output formats: human-readable or JSON - both shortable (`-S`)
--  Verbose mode for advanced metadata
--  Accepts both FQDN and raw IPv4/6 addresses
--  Continuous diag with either infinite or static count
--  Port specification
+- **NTS (Network Time Security) support for authenticated time synchronization**
+- Compare offsets between X servers
+- Output formats: human-readable or JSON - both shortable (`-S`)
+- Verbose mode for advanced metadata
+- Accepts both FQDN and raw IPv4/6 addresses
+- Continuous diag with either infinite or static count
+- Port specification
 
 ---
 ## Installation
@@ -59,10 +60,35 @@ rkik --help
 ```
 
 
-### Compile sync feature
-To enable rkik to apply queried time to your system, you must include sync feature to rkik's compilation
+### Default Features
+
+By default, `rkik` includes:
+- **JSON output** (`json` feature)
+- **System time sync** (`sync` feature)
+- **NTS support** (`nts` feature)
+
 ```bash
-cargo build --release --features sync
+# Standard build includes everything
+cargo build --release
+
+# Or install from crates.io
+cargo install rkik
+```
+
+### Compile with custom features
+
+#### Minimal build (no sync, no NTS)
+```bash
+cargo build --release --no-default-features --features json
+```
+
+#### Only specific features
+```bash
+# Only sync
+cargo build --release --no-default-features --features "json,sync"
+
+# Only NTS
+cargo build --release --no-default-features --features "json,nts"
 ```
 
 ---
@@ -82,7 +108,76 @@ cargo build --release --features sync
 | `rkik es.pool.ntp.org -S `         | Query a server and display a short minimalist output           |
 | `rkik -C ntp1 ntp2 -c 2 -i 0.1 --nocolor`         | Compare 2 servers twice with an interval of 100ms and display a nocolor output           |
 | `rkik -S time.google.com --sync`         | Query a server and apply returned time to system (sync feature -> requires root or specific permissions))          |
+| `rkik time.cloudflare.com --nts` | Query an NTS-enabled server with cryptographic authentication |
+| `rkik time.cloudflare.com --nts -v` | NTS query with full diagnostics (handshake, cookies, TLS certificate) |
+| `rkik --compare nts.ntp.se time.cloudflare.com --nts -v` | Compare multiple NTS servers with verbose output |
+| `rkik --nts --format json --pretty time.cloudflare.com` | NTS query with JSON output including certificate details |
 
+
+---
+
+## NTS (Network Time Security)
+
+RKIK fully supports **NTS (RFC 8915)**, providing cryptographically authenticated NTP queries.
+
+### Key Features
+- ✅ **Cryptographic authentication** of NTP packets
+- ✅ **TLS certificate verification** with chain of trust
+- ✅ **Complete diagnostics** in verbose mode:
+  - NTS-KE handshake duration
+  - Cookie management (count and sizes)
+  - AEAD algorithm details
+  - Full TLS certificate information
+- ✅ **JSON export** with all metadata
+- ✅ **Compatible** with all existing features (compare, plugin mode, etc.)
+
+### Quick Start
+```bash
+# Basic NTS query
+rkik --nts time.cloudflare.com
+
+# Full diagnostics with certificate details
+rkik --nts --verbose time.cloudflare.com
+
+# Compare multiple NTS servers
+rkik --nts --compare time.cloudflare.com nts.netnod.se
+```
+
+### NTS Verbose Output Example
+```
+Server: time.cloudflare.com [NTS Authenticated]
+IP: 162.159.200.123:123
+UTC Time: Mon, 15 Dec 2025 10:57:17 +0000
+Local Time: 2025-12-15 11:57:17
+Clock Offset: 14.496 ms
+Round Trip Delay: 500.000 ms
+Stratum: 0
+Reference ID: 162.159.200.1:123
+Authenticated: Yes (NTS)
+
+=== NTS-KE Diagnostics ===
+Handshake Duration: 95.168 ms
+Cookies Received: 8 cookies
+AEAD Algorithm: AEAD_AES_SIV_CMAC_256
+NTP Server: 162.159.200.1:123
+Cookie Sizes:
+  Cookie 1: 96 bytes
+  Cookie 2: 96 bytes
+  ... (truncated)
+
+=== TLS Certificate ===
+Subject: CN=time.cloudflare.com
+Issuer: C=US, O=DigiCert Inc, OU=www.digicert.com, CN=GeoTrust TLS ECC CA G1
+Valid: Feb 10 00:00:00 2025 +00:00 to Mar 12 23:59:59 2026 +00:00
+Fingerprint (SHA-256):
+  4b060f4d02d65f9cb50ab27239c024426c097d238a2c9e602c896288ed462119
+SANs:
+  - time.cloudflare.com
+Signature Algorithm: 1.2.840.10045.4.3.2
+Public Key Algorithm: 1.2.840.10045.2.1
+```
+
+For detailed NTS documentation, see [docs/NTS_USAGE.md](docs/NTS_USAGE.md)
 
 ---
 
@@ -144,6 +239,13 @@ Options:
   -8, --infinite                        Infinite count mode
   -i, --interval <INTERVAL>             Interval between queries in seconds (only with --infinite or --count) [default: 1.0]
   -c, --count <COUNT>                   Specific count of requests [default: 1]
+      --nts                             Use NTS (Network Time Security) for authenticated queries
+      --nts-port <PORT>                 NTS-KE port (default: 4460)
+      --sync                            Apply queried time to system clock (requires root)
+      --dry-run                         Dry run mode for --sync (no actual clock change)
+      --plugin                          Plugin/monitoring mode (Centreon/Nagios/Zabbix)
+      --warning <MS>                    Warning threshold in milliseconds (requires --plugin)
+      --critical <MS>                   Critical threshold in milliseconds (requires --plugin)
   -h, --help                            Print help
   -V, --version                         Print version
 ```

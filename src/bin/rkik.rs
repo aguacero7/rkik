@@ -92,6 +92,16 @@ struct Args {
     #[arg(short = 'c', long, default_value_t = 1)]
     count: u32,
 
+    /// Enable NTS (Network Time Security) authentication
+    #[cfg(feature = "nts")]
+    #[arg(long)]
+    pub nts: bool,
+
+    /// NTS-KE (Key Exchange) port number
+    #[cfg(feature = "nts")]
+    #[arg(long, default_value_t = 4460)]
+    pub nts_port: u16,
+
     /// Enable Centreon/Nagios plugin output (produces machine-parseable output and proper exit codes)
     #[arg(long)]
     pub plugin: bool,
@@ -233,10 +243,15 @@ async fn main() {
 
     let exit_code = match (&args.compare, &args.server, &args.target) {
         (Some(list), _, _) => {
+            #[cfg(feature = "nts")]
+            let (use_nts, nts_port) = (args.nts, args.nts_port);
+            #[cfg(not(feature = "nts"))]
+            let (use_nts, nts_port) = (false, 4460u16);
+
             let mut all: HashMap<String, Vec<ProbeResult>> = HashMap::new();
             let mut n = 0u32;
             loop {
-                match compare_many(list, args.ipv6, timeout).await {
+                match compare_many(list, args.ipv6, timeout, use_nts, nts_port).await {
                     Ok(results) => {
                         if args.count > 1 || args.infinite {
                             match args.format {
@@ -366,8 +381,14 @@ async fn main() {
 async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
     let mut all = Vec::new();
     let mut n = 0u32;
+
+    #[cfg(feature = "nts")]
+    let (use_nts, nts_port) = (args.nts, args.nts_port);
+    #[cfg(not(feature = "nts"))]
+    let (use_nts, nts_port) = (false, 4460u16);
+
     loop {
-        match query_one(target, args.ipv6, timeout).await {
+        match query_one(target, args.ipv6, timeout, use_nts, nts_port).await {
             Ok(res) => {
                 // In plugin mode we suppress the regular human-readable output and only
                 // collect results to produce the plugin line at the end.
