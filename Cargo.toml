@@ -28,7 +28,7 @@ default = ["json", "sync", "nts", "ptp"]
 json = ["serde", "serde_json"]
 sync = ["libc"]
 nts = ["rkik-nts"]
-ptp = ["statime", "statime-linux"]
+ptp = ["dep:statime", "dep:statime-linux"]
 network-tests = []
 
 [dependencies]
@@ -44,6 +44,8 @@ thiserror = "2.0.16"
 tracing = "0.1"
 libc = { version = "0.2.175", optional = true }
 rkik-nts = { version = "0.3.0", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
 statime = { version = "0.3.0", optional = true }
 statime-linux = { version = "0.3.0", optional = true }
 

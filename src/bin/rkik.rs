@@ -234,7 +234,7 @@ async fn main() {
         let _ = io::stdout().flush();
         process::exit(2);
     }
-    #[cfg(all(feature = "ptp", feature = "nts"))]
+    #[cfg(all(feature = "ptp", feature = "nts", target_os = "linux"))]
     if args.ptp && args.nts {
         term.write_line(
             &style("--ptp cannot be combined with --nts")
@@ -245,7 +245,7 @@ async fn main() {
         let _ = io::stdout().flush();
         process::exit(2);
     }
-    #[cfg(all(feature = "ptp", feature = "sync"))]
+    #[cfg(all(feature = "ptp", feature = "sync", target_os = "linux"))]
     if args.ptp && args.sync {
         term.write_line(
             &style("--ptp cannot be combined with --sync")
