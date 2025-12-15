@@ -650,12 +650,7 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
 }
 
 #[cfg(feature = "ptp")]
-async fn run_ptp_mode(
-    args: &Args,
-    term: &Term,
-    timeout: Duration,
-    opts: PtpQueryOptions,
-) -> i32 {
+async fn run_ptp_mode(args: &Args, term: &Term, timeout: Duration, opts: PtpQueryOptions) -> i32 {
     match (&args.compare, &args.server, &args.target) {
         (Some(list), _, _) => ptp_compare_loop(list, args, term, timeout, &opts).await,
         (_, Some(server), _) => {
@@ -811,13 +806,7 @@ async fn ptp_compare_loop(
                     match args.format {
                         OutputFormat::Text => {
                             if args.verbose {
-                                output_ptp(
-                                    term,
-                                    &results,
-                                    OutputFormat::Text,
-                                    args.pretty,
-                                    true,
-                                );
+                                output_ptp(term, &results, OutputFormat::Text, args.pretty, true);
                             } else {
                                 let line = fmt::ptp_text::render_short_compare(&results);
                                 term.write_line(&line).ok();

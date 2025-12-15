@@ -62,11 +62,7 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
                 timestamp: if verbose { Some(r.timestamp) } else { None },
                 authenticated: r.authenticated,
                 #[cfg(feature = "nts")]
-                nts_ke_data: if verbose {
-                    r.nts_ke_data.clone()
-                } else {
-                    None
-                },
+                nts_ke_data: if verbose { r.nts_ke_data.clone() } else { None },
             })
             .collect();
 

@@ -3,16 +3,8 @@
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use console::set_colors_enabled;
 use rkik::{
-    fmt,
-    stats::compute_ptp_stats,
-    ClockIdentity,
-    ClockQuality,
-    PacketStats,
-    PortIdentity,
-    PtpDiagnostics,
-    PtpProbeResult,
-    PtpTarget,
-    TimeSource,
+    ClockIdentity, ClockQuality, PacketStats, PortIdentity, PtpDiagnostics, PtpProbeResult,
+    PtpTarget, TimeSource, fmt, stats::compute_ptp_stats,
 };
 use std::net::IpAddr;
 
@@ -74,7 +66,10 @@ fn sample_probe(offset_ns: i64, delay_ns: i64, include_diag: bool) -> PtpProbeRe
 
 #[test]
 fn ptp_stats_report_expected_values() {
-    let probes = vec![sample_probe(1_000, 5_000, false), sample_probe(-500, 7_000, false)];
+    let probes = vec![
+        sample_probe(1_000, 5_000, false),
+        sample_probe(-500, 7_000, false),
+    ];
     let stats = compute_ptp_stats(&probes);
     assert_eq!(stats.count, 2);
     assert!((stats.offset_avg_ns - 250.0).abs() < f64::EPSILON);

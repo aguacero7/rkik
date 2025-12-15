@@ -109,7 +109,11 @@ struct JsonRun<'a> {
 }
 
 /// Serialize full PTP results into JSON.
-pub fn to_json(results: &[PtpProbeResult], pretty: bool, verbose: bool) -> Result<String, RkikError> {
+pub fn to_json(
+    results: &[PtpProbeResult],
+    pretty: bool,
+    verbose: bool,
+) -> Result<String, RkikError> {
     #[cfg(feature = "json")]
     {
         let probes: Vec<JsonProbe<'_>> = results
@@ -209,8 +213,7 @@ pub fn probe_to_short_json(result: &PtpProbeResult) -> Result<String, RkikError>
             name: &result.target.name,
             domain: result.target.domain,
         };
-        serde_json::to_string(&probe)
-            .map_err(|e| RkikError::Other(format!("json encode: {}", e)))
+        serde_json::to_string(&probe).map_err(|e| RkikError::Other(format!("json encode: {}", e)))
     }
     #[cfg(not(feature = "json"))]
     {

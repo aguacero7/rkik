@@ -8,10 +8,10 @@ async fn test_nts_query_swedish_server() {
 
     let result = query_one(
         "nts.ntp.se",
-        false,                        // ipv6
-        Duration::from_secs(15),      // timeout
-        true,                         // use_nts
-        4460,                         // nts_port
+        false,                   // ipv6
+        Duration::from_secs(15), // timeout
+        true,                    // use_nts
+        4460,                    // nts_port
     )
     .await;
 
@@ -31,10 +31,10 @@ async fn test_nts_query_cloudflare() {
 
     let result = query_one(
         "time.cloudflare.com",
-        false,                        // ipv6
-        Duration::from_secs(15),      // timeout
-        true,                         // use_nts
-        4460,                         // nts_port
+        false,                   // ipv6
+        Duration::from_secs(15), // timeout
+        true,                    // use_nts
+        4460,                    // nts_port
     )
     .await;
 
@@ -56,10 +56,10 @@ async fn test_nts_compare_servers() {
 
     let result = compare_many(
         &servers,
-        false,                        // ipv6
-        Duration::from_secs(15),      // timeout
-        true,                         // use_nts
-        4460,                         // nts_port
+        false,                   // ipv6
+        Duration::from_secs(15), // timeout
+        true,                    // use_nts
+        4460,                    // nts_port
     )
     .await;
 
@@ -67,7 +67,10 @@ async fn test_nts_compare_servers() {
 
     let probes = result.unwrap();
     assert_eq!(probes.len(), 1);
-    assert!(probes[0].authenticated, "All results should be NTS authenticated");
+    assert!(
+        probes[0].authenticated,
+        "All results should be NTS authenticated"
+    );
 }
 
 #[cfg(feature = "nts")]
@@ -79,15 +82,17 @@ async fn test_nts_disabled_on_regular_server() {
     // Query a regular NTP server without NTS
     let result = query_one(
         "time.google.com",
-        false,                        // ipv6
-        Duration::from_secs(5),       // timeout
-        false,                        // use_nts = false
-        4460,                         // nts_port (ignored)
+        false,                  // ipv6
+        Duration::from_secs(5), // timeout
+        false,                  // use_nts = false
+        4460,                   // nts_port (ignored)
     )
     .await;
 
     if let Ok(probe) = result {
-        assert!(!probe.authenticated, "Regular NTP query should not be authenticated");
+        assert!(
+            !probe.authenticated,
+            "Regular NTP query should not be authenticated"
+        );
     }
 }
-

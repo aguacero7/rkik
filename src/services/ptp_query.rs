@@ -21,7 +21,13 @@ pub struct PtpQueryOptions {
 }
 
 impl PtpQueryOptions {
-    pub fn new(domain: u8, event_port: u16, general_port: u16, hw_timestamping: bool, verbose: bool) -> Self {
+    pub fn new(
+        domain: u8,
+        event_port: u16,
+        general_port: u16,
+        hw_timestamping: bool,
+        verbose: bool,
+    ) -> Self {
         Self {
             domain,
             event_port,

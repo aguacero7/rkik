@@ -81,9 +81,7 @@ pub fn render_probe(result: &PtpProbeResult, verbose: bool) -> String {
             meas = diag.measurement_duration_ms,
         ));
     } else if verbose {
-        out.push_str(
-            "\n\nDiagnostics unavailable (run with --verbose to enable detailed stats).",
-        );
+        out.push_str("\n\nDiagnostics unavailable (run with --verbose to enable detailed stats).");
     }
 
     out

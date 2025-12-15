@@ -317,7 +317,10 @@ mod tests {
             offset_scaled_log_variance: 0,
         };
 
-        assert_eq!(quality.class_description(), "Primary reference (GPS/Atomic)");
+        assert_eq!(
+            quality.class_description(),
+            "Primary reference (GPS/Atomic)"
+        );
         assert_eq!(quality.accuracy_description(), "within 25 ns");
     }
 }

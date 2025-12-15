@@ -3,9 +3,9 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
-use crate::adapters::{ntp_client, resolver};
 #[cfg(feature = "nts")]
 use crate::adapters::nts_client;
+use crate::adapters::{ntp_client, resolver};
 use crate::domain::ntp::{ProbeResult, Target};
 use crate::error::RkikError;
 use rsntp::ReferenceIdentifier;

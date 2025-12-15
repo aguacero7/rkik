@@ -15,11 +15,11 @@ pub use domain::ptp::{
 };
 pub use error::RkikError;
 pub use services::compare::compare_many;
-pub use services::query::query_one;
 #[cfg(feature = "ptp")]
 pub use services::ptp_query::{
-    query_many as query_many_ptp, query_target as query_one_ptp, PtpQueryOptions,
+    PtpQueryOptions, query_many as query_many_ptp, query_target as query_one_ptp,
 };
+pub use services::query::query_one;
 
 #[cfg(feature = "sync")]
 pub mod sync;
