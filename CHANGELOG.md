@@ -1,6 +1,6 @@
 # RKIK - Changelog
 
-## [Unreleased]
+## [Unreleased
 
 ### Added
 - **NTS (Network Time Security) support** - Full RFC 8915 implementation
@@ -22,7 +22,7 @@
     - Self-signed certificate detection with warning
   - Full JSON export support for all NTS diagnostics
   - Compatible with all existing features (compare, plugin mode, etc.)
-- **Precision Time Protocol (PTP) diagnostics** (feature `ptp`, enabled by default)
+- **Precision Time Protocol (PTP) diagnostics** (feature `ptp`, enabled by default on linux environments, unavailable for windows or macos)
   - New CLI switch `--ptp` with domain and port controls (`--ptp-domain`, `--ptp-event-port`, `--ptp-general-port`)
   - Hardware timestamping flag (`--ptp-hw-timestamp`) and verbose diagnostics mirroring IEEE 1588 master data
   - Text and JSON renderers for single probes, compare mode, short/simple outputs, plugin lines, and stats
@@ -71,8 +71,6 @@ rkik pool.ntp.org
 - NTS provides cryptographic authentication of NTP packets
 - TLS certificate verification with chain of trust validation
 - Detection and warning for self-signed certificates
-
----
 
 ## [1.2.1] - 2025-11-25
 
