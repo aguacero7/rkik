@@ -161,8 +161,12 @@ pub fn default_path() -> PathBuf {
 fn parse_value(root: Value) -> Result<ConfigData, ConfigError> {
     let mut data = ConfigData::default();
     if let Some(defaults) = root.get("defaults").and_then(|val| val.as_table()) {
-        if let Some(timeout) = defaults.get("timeout").and_then(Value::as_float) {
-            data.defaults.timeout = Some(timeout);
+        if let Some(timeout_value) = defaults.get("timeout") {
+            if let Some(timeout) = timeout_value.as_float() {
+                data.defaults.timeout = Some(timeout);
+            } else if let Some(int_timeout) = timeout_value.as_integer() {
+                data.defaults.timeout = Some(int_timeout as f64);
+            }
         }
         if let Some(format) = defaults.get("format").and_then(Value::as_str) {
             data.defaults.format = Some(format.to_string());

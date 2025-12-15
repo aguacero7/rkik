@@ -654,7 +654,7 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
     #[cfg(feature = "sync")]
     if args.sync {
         let mut no_sync = false;
-        if !get_sys_permissions() | args.dry_run {
+        if !get_sys_permissions() || args.dry_run {
             no_sync = true;
         }
         let probe = average_probe(&all);
