@@ -1,4 +1,4 @@
 pub mod ntp;
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 pub mod ptp;

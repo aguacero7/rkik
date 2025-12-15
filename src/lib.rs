@@ -8,14 +8,14 @@ pub mod services;
 pub mod stats;
 
 pub use domain::ntp::{ProbeResult, Target};
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 pub use domain::ptp::{
     ClockIdentity, ClockQuality, PacketStats, PortIdentity, PtpDiagnostics, PtpProbeResult,
     PtpTarget, TimeSource,
 };
 pub use error::RkikError;
 pub use services::compare::compare_many;
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 pub use services::ptp_query::{
     PtpQueryOptions, query_many as query_many_ptp, query_target as query_one_ptp,
 };

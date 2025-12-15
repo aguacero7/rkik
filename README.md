@@ -14,7 +14,7 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 - **Protocol coverage**
   - NTP/Chrony/ntpd probes over IPv4/IPv6
   - **NTS (RFC 8915)** authenticated sessions with full TLS/NTS-KE diagnostics
-  - **PTP (IEEE 1588-2019)** measurements, including master identity, clock quality, packet stats, and diagnostics in both text and JSON formats
+- **PTP (IEEE 1588-2019)** measurements (Linux-only), including master identity, clock quality, packet stats, and diagnostics in both text and JSON formats
 - **Flexible output**: human-readable, verbose, simple/short, JSON, or compact JSON lines
 - **Compare / monitoring**: asynchronous comparison across any number of targets, plugin/Nagios output with thresholds, and continuous/infinite sampling modes
 - **Ergonomics**: `host[:port]` parsing (including `[IPv6]:port`), colorized or plain text, JSON pretty-print, and optional one-shot system sync
@@ -66,7 +66,12 @@ By default, `rkik` includes:
 - **JSON output** (`json` feature)
 - **System time sync** (`sync` feature)
 - **NTS support** (`nts` feature)
-- **PTP diagnostics** (`ptp` feature)
+- **PTP diagnostics** (`ptp` feature, automatically effective only on Linux targets)
+
+> **Platform note:** The `ptp` feature depends on Linux timestamping support.
+> When building for Linux, it is enabled as part of the default feature set.
+> On other operating systems the feature is ignored, and the CLI hides the `--ptp`
+> switches unless you explicitly build a Linux target.
 
 ```bash
 # Standard build includes everything
@@ -190,7 +195,7 @@ For detailed NTS documentation, see [docs/NTS_USAGE.md](docs/NTS_USAGE.md)
 
 ## PTP (Precision Time Protocol)
 
-RKIK ships a lightweight IEEE 1588-2019 client mode to extract master clock metadata, offsets, and diagnostics. The implementation relies on `statime`/`statime-linux` and works anywhere Rust runs (hardware timestamping is reported but optional).
+RKIK ships a lightweight IEEE 1588-2019 client mode to extract master clock metadata, offsets, and diagnostics. The implementation relies on `statime`/`statime-linux` and therefore currently targets **Linux builds only** (hardware timestamping is reported but optional). When compiling for other operating systems the CLI automatically hides all `--ptp` switches.
 
 ### CLI flags
 
