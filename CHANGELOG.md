@@ -1,5 +1,79 @@
 # RKIK - Changelog
 
+## [Unreleased]
+
+### Added
+- **NTS (Network Time Security) support** - Full RFC 8915 implementation
+  - `--nts` flag to enable NTS authentication
+  - `--nts-port` to specify custom NTS-KE port (default: 4460)
+  - NTS enabled by default in builds (feature flag `nts`)
+  - Complete NTS-KE diagnostics in verbose mode:
+    - Handshake duration measurement
+    - Cookie count and sizes
+    - AEAD algorithm negotiation details
+    - NTP server address (may differ from NTS-KE server)
+  - **TLS Certificate information** (requires rkik-nts v0.3.0+):
+    - Subject and Issuer
+    - Validity period (valid_from, valid_until)
+    - Serial number
+    - Subject Alternative Names (SANs)
+    - Signature and public key algorithms
+    - SHA-256 fingerprint
+    - Self-signed certificate detection with warning
+  - Full JSON export support for all NTS diagnostics
+  - Compatible with all existing features (compare, plugin mode, etc.)
+- **Precision Time Protocol (PTP) diagnostics** (feature `ptp`, enabled by default)
+  - New CLI switch `--ptp` with domain and port controls (`--ptp-domain`, `--ptp-event-port`, `--ptp-general-port`)
+  - Hardware timestamping flag (`--ptp-hw-timestamp`) and verbose diagnostics mirroring IEEE 1588 master data
+  - Text and JSON renderers for single probes, compare mode, short/simple outputs, plugin lines, and stats
+  - Library exports (`PtpProbeResult`, `PtpQueryOptions`, etc.) plus deterministic adapter to exercise flows without special NICs
+- **Docker-based test environment** (`docs/TEST_ENV.md`)
+  - `./scripts/test-env-up.sh` / `test-env-down.sh` wrap `docker compose` to spawn three NTP daemons and a LinuxPTP grandmaster
+  - Targets exposed on high UDP ports for local RKIK runs and CI demos
+
+### Changed
+- **Default features**: NTS and PTP are now included by default alongside `json` and `sync`
+- **Dependency updates**:
+  - `rkik-nts` upgraded from v0.2.0 to v0.3.0 (adds certificate support)
+  - `statime` / `statime-linux` pulled in for the PTP plumbing
+
+### Improved
+- **Verbose mode enhancements**:
+  - Comprehensive NTS-KE diagnostics section
+  - TLS certificate details with color-coded output
+  - Self-signed certificate warnings
+  - Cookie size breakdown
+- **JSON output**:
+  - Full NTS-KE metadata in verbose JSON mode
+  - Certificate information included in JSON exports
+  - Backwards compatible with non-NTS queries
+- **Tests**:
+  - Added deterministic unit tests for the PTP text/JSON renderers and stats helpers (no network dependency).
+- **CI**:
+  - GitHub Actions now caches build artifacts, runs `cargo fmt`/`clippy -D warnings`, and executes builds/tests across default, minimal, and full feature sets (excluding `network-tests`) to ensure the `ptp` feature stays covered.
+
+### Examples
+```bash
+# NTS query with full diagnostics
+rkik --nts --verbose time.cloudflare.com
+
+# NTS comparison between servers
+rkik --nts --compare time.cloudflare.com nts.netnod.se
+
+# JSON export with NTS diagnostics
+rkik --nts --verbose --format json --pretty time.cloudflare.com
+
+# Standard NTP still works as before
+rkik pool.ntp.org
+```
+
+### Security
+- NTS provides cryptographic authentication of NTP packets
+- TLS certificate verification with chain of trust validation
+- Detection and warning for self-signed certificates
+
+---
+
 ## [1.2.1] - 2025-11-25
 
 ### Fixed

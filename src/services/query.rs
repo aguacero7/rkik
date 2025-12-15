@@ -3,6 +3,8 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
+#[cfg(feature = "nts")]
+use crate::adapters::nts_client;
 use crate::adapters::{ntp_client, resolver};
 use crate::domain::ntp::{ProbeResult, Target};
 use crate::error::RkikError;
@@ -123,12 +125,60 @@ fn format_reference_id(reference_id: &ReferenceIdentifier) -> String {
 }
 
 /// Query a single target and return a [`ProbeResult`].
+///
+/// # Arguments
+///
+/// * `target` - The target server (hostname or IP address)
+/// * `ipv6` - Whether to use IPv6
+/// * `timeout` - Timeout duration
+/// * `use_nts` - Whether to use NTS (Network Time Security) authentication
+/// * `nts_port` - NTS-KE port number (typically 4460)
 #[instrument(skip(timeout))]
 pub async fn query_one(
     target: &str,
     mut ipv6: bool,
     timeout: Duration,
+    use_nts: bool,
+    nts_port: u16,
 ) -> Result<ProbeResult, RkikError> {
+    // NTS branch
+    #[cfg(feature = "nts")]
+    if use_nts {
+        let parsed = parse_target(target)?;
+        let nts_result = nts_client::query_nts(parsed.host, Some(nts_port), timeout).await?;
+
+        // Resolve IP for display purposes
+        let ip: IpAddr = resolver::resolve_ip(parsed.host, ipv6)?;
+        let local: DateTime<Local> = DateTime::from(nts_result.network_time);
+        let timestamp = nts_result.network_time.timestamp();
+
+        return Ok(ProbeResult {
+            target: Target {
+                name: target.to_string(),
+                ip,
+                port: parsed.port.unwrap_or(123),
+            },
+            offset_ms: nts_result.offset_ms,
+            rtt_ms: nts_result.rtt_ms,
+            stratum: 0, // NTS library doesn't expose stratum
+            ref_id: nts_result.server.clone(),
+            utc: nts_result.network_time,
+            local,
+            timestamp,
+            authenticated: nts_result.authenticated,
+            #[cfg(feature = "nts")]
+            nts_ke_data: nts_result.nts_ke_data,
+        });
+    }
+
+    // Standard NTP branch (without NTS)
+    #[cfg(not(feature = "nts"))]
+    if use_nts {
+        return Err(RkikError::Other(
+            "NTS support not enabled. Compile with --features nts".to_string(),
+        ));
+    }
+
     let parsed = parse_target(target)?;
 
     let ip: IpAddr = resolver::resolve_ip(parsed.host, ipv6)?;
@@ -164,5 +214,8 @@ pub async fn query_one(
         utc,
         local,
         timestamp,
+        authenticated: false, // Standard NTP is not authenticated
+        #[cfg(feature = "nts")]
+        nts_ke_data: None, // No NTS-KE data for standard NTP queries
     })
 }

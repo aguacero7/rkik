@@ -12,6 +12,9 @@ pub enum RkikError {
     /// Protocol violation.
     #[error("protocol: {0}")]
     Protocol(String),
+    /// NTS (Network Time Security) error.
+    #[error("nts: {0}")]
+    Nts(String),
     /// Underlying IO error.
     #[error(transparent)]
     Io(#[from] std::io::Error),

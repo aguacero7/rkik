@@ -6,6 +6,9 @@ use crate::domain::ntp::ProbeResult;
 use crate::error::RkikError;
 use crate::stats::Stats;
 
+#[cfg(all(feature = "json", feature = "nts"))]
+use crate::adapters::nts_client::NtsKeData;
+
 #[cfg(feature = "json")]
 #[derive(Serialize)]
 pub struct JsonProbe {
@@ -21,6 +24,10 @@ pub struct JsonProbe {
     pub utc: String,
     pub local: String,
     pub timestamp: Option<i64>,
+    pub authenticated: bool,
+    #[cfg(feature = "nts")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nts_ke_data: Option<NtsKeData>,
 }
 
 #[cfg(feature = "json")]
@@ -53,6 +60,9 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
                     None
                 },
                 timestamp: if verbose { Some(r.timestamp) } else { None },
+                authenticated: r.authenticated,
+                #[cfg(feature = "nts")]
+                nts_ke_data: if verbose { r.nts_ke_data.clone() } else { None },
             })
             .collect();
 
