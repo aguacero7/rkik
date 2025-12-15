@@ -11,7 +11,7 @@ use rkik::{
     ProbeResult, RkikError, compare_many, fmt, query_one,
     stats::{Stats, compute_stats},
 };
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 use rkik::{
     PtpProbeResult, PtpQueryOptions, query_many_ptp, query_one_ptp,
     stats::{PtpStats, compute_ptp_stats},
@@ -107,28 +107,28 @@ struct Args {
     #[arg(long, default_value_t = 4460)]
     pub nts_port: u16,
 
-    /// Enable Precision Time Protocol mode
-    #[cfg(feature = "ptp")]
+    /// Enable Precision Time Protocol mode (only available on Linux)
+    #[cfg(all(feature = "ptp", target_os = "linux"))]
     #[arg(long)]
     pub ptp: bool,
 
     /// PTP domain number
-    #[cfg(feature = "ptp")]
+    #[cfg(all(feature = "ptp", target_os = "linux"))]
     #[arg(long, default_value_t = 0, requires = "ptp")]
     pub ptp_domain: u8,
 
     /// PTP event port
-    #[cfg(feature = "ptp")]
+    #[cfg(all(feature = "ptp", target_os = "linux"))]
     #[arg(long, default_value_t = 319, requires = "ptp")]
     pub ptp_event_port: u16,
 
     /// PTP general port
-    #[cfg(feature = "ptp")]
+    #[cfg(all(feature = "ptp", target_os = "linux"))]
     #[arg(long, default_value_t = 320, requires = "ptp")]
     pub ptp_general_port: u16,
 
     /// Request hardware timestamping (simulated)
-    #[cfg(feature = "ptp")]
+    #[cfg(all(feature = "ptp", target_os = "linux"))]
     #[arg(long, requires = "ptp")]
     pub ptp_hw_timestamp: bool,
 
@@ -293,7 +293,7 @@ async fn main() {
         process::exit(2);
     }
 
-    #[cfg(feature = "ptp")]
+    #[cfg(all(feature = "ptp", target_os = "linux"))]
     if args.ptp {
         let opts = PtpQueryOptions::new(
             args.ptp_domain,
@@ -649,7 +649,7 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
     }
 }
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 async fn run_ptp_mode(args: &Args, term: &Term, timeout: Duration, opts: PtpQueryOptions) -> i32 {
     match (&args.compare, &args.server, &args.target) {
         (Some(list), _, _) => ptp_compare_loop(list, args, term, timeout, &opts).await,
@@ -674,7 +674,7 @@ async fn run_ptp_mode(args: &Args, term: &Term, timeout: Duration, opts: PtpQuer
     }
 }
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 async fn ptp_query_loop(
     target: &str,
     args: &Args,
@@ -789,7 +789,7 @@ async fn ptp_query_loop(
     }
 }
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 async fn ptp_compare_loop(
     list: &[String],
     args: &Args,
@@ -888,7 +888,7 @@ async fn ptp_compare_loop(
     0
 }
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 fn emit_ptp_unknown(warning: Option<f64>, critical: Option<f64>) {
     let warn_str = warning.map(|v| v.to_string()).unwrap_or_default();
     let crit_str = critical.map(|v| v.to_string()).unwrap_or_default();
@@ -898,7 +898,7 @@ fn emit_ptp_unknown(warning: Option<f64>, critical: Option<f64>) {
     );
 }
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 fn emit_ptp_plugin(stats: &PtpStats, probe: &PtpProbeResult, args: &Args) -> i32 {
     let warn_str = args.warning.map(|v| v.to_string()).unwrap_or_default();
     let crit_str = args.critical.map(|v| v.to_string()).unwrap_or_default();
@@ -942,7 +942,7 @@ fn emit_ptp_plugin(stats: &PtpStats, probe: &PtpProbeResult, args: &Args) -> i32
     exit_code
 }
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 fn output_ptp(
     term: &Term,
     results: &[PtpProbeResult],

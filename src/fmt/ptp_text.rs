@@ -1,4 +1,4 @@
-#![cfg(feature = "ptp")]
+#![cfg(all(feature = "ptp", target_os = "linux"))]
 
 use chrono::SecondsFormat;
 use console::style;

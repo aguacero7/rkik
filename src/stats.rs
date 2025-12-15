@@ -1,5 +1,5 @@
 use crate::domain::ntp::ProbeResult;
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 use crate::domain::ptp::PtpProbeResult;
 #[cfg(feature = "json")]
 use serde::Serialize;
@@ -35,7 +35,7 @@ pub fn compute_stats(results: &[ProbeResult]) -> Stats {
     }
 }
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "json", derive(Serialize))]
 pub struct PtpStats {
@@ -46,7 +46,7 @@ pub struct PtpStats {
     pub mean_path_delay_avg_ns: f64,
 }
 
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 pub fn compute_ptp_stats(results: &[PtpProbeResult]) -> PtpStats {
     if results.is_empty() {
         return PtpStats {

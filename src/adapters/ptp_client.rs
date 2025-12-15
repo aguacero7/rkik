@@ -5,7 +5,7 @@
 //! deterministic probe that mirrors the shape of PTP data so the rest of the
 //! application can be exercised.
 
-#![cfg(feature = "ptp")]
+#![cfg(all(feature = "ptp", target_os = "linux"))]
 
 use chrono::{Local, Utc};
 use std::collections::hash_map::DefaultHasher;

@@ -1,4 +1,4 @@
 pub mod compare;
-#[cfg(feature = "ptp")]
+#[cfg(all(feature = "ptp", target_os = "linux"))]
 pub mod ptp_query;
 pub mod query;
