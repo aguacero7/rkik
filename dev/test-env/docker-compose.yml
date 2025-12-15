@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  ntp_primary:
+    image: cturra/ntp:latest
+    container_name: rkik-ntp-primary
+    environment:
+      - NTP_SERVERS=time.google.com
+    ports:
+      - "3123:123/udp"
+    restart: unless-stopped
+
+  ntp_secondary:
+    image: cturra/ntp:latest
+    container_name: rkik-ntp-secondary
+    environment:
+      - NTP_SERVERS=time.cloudflare.com
+    ports:
+      - "4123:123/udp"
+    restart: unless-stopped
+
+  ntp_pool:
+    image: cturra/ntp:latest
+    container_name: rkik-ntp-pool
+    environment:
+      - NTP_SERVERS=pool.ntp.org
+    ports:
+      - "5123:123/udp"
+    restart: unless-stopped
+
+  ptp_master:
+    build:
+      context: ./ptp-master
+    container_name: rkik-ptp-master
+    environment:
+      - PTP_DOMAIN=24
+      - PTP_OPTS=
+    ports:
+      - "3319:319/udp"
+      - "3320:320/udp"
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped

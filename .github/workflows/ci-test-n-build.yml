@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust ${{ matrix.rust }}
         uses: actions-rs/toolchain@v1
@@ -28,20 +28,75 @@ jobs:
           toolchain: ${{ matrix.rust }}
           override: true
 
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+
       - name: Install audit tool
         run: cargo install cargo-audit
-
-      - name: Build (debug)
-        run: cargo build --verbose
-
-      - name: Build (release)
-        run: cargo build --release --verbose
-
-      - name: Non-network tests
-        run: cargo test -- --skip test_compare_argument --skip test_resolve_ip_v6
 
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+
+      - name: Build (debug, default features)
+        run: cargo build --verbose
+
+      - name: Test (default features)
+        run: cargo test
+
+      - name: Test (json only)
+        run: cargo test --no-default-features --features json
+        shell: bash
+
+      - name: Test (full feature set without network-tests)
+        run: cargo test --no-default-features --features "json sync nts ptp"
+        shell: bash
+
+      - name: Build (release, default features)
+        run: cargo build --release --verbose
+
+      - name: Build (release, json only)
+        run: cargo build --release --no-default-features --features json --verbose
+        shell: bash
+
+      - name: Build (release, full feature set without network-tests)
+        run: cargo build --release --no-default-features --features "json sync nts ptp" --verbose
+        shell: bash
+
       - name: Audit dependencies
         run: cargo audit --json || true
+
+  ptp-docker-smoke:
+    name: PTP Docker Smoke Tests
+    runs-on: ubuntu-latest
+    needs: build-test-audit
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Start test environment
+        run: ./scripts/test-env-up.sh
+
+      - name: Wait for services
+        run: sleep 8
+
+      - name: PTP text probe
+        run: cargo run -- --ptp --ptp-domain 24 --ptp-event-port 3319 --ptp-general-port 3320 127.0.0.1
+
+      - name: PTP verbose JSON probe
+        run: cargo run -- --ptp --ptp-domain 24 --ptp-event-port 3319 --ptp-general-port 3320 --verbose --format json --pretty 127.0.0.1
+
+      - name: Stop test environment
+        if: always()
+        run: ./scripts/test-env-down.sh
