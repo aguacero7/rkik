@@ -316,35 +316,28 @@ Round Trip Delay: 33.192 ms
 ```bash
 Rusty Klock Inspection Kit - NTP Query and Compare Tool
 
-Usage: rkik [OPTIONS] [TARGET]
-
-Arguments:
-  [TARGET]  Positional server name or IP (can include port specification) - Examples: [time.google.com, [2001:4860:4860::8888]:123, 192.168.1.23:123]
-
-Options:
-  -s, --server <SERVER>                 Query a single NTP server (optional)
-  -C, --compare <COMPARE> <COMPARE>...  Compare multiple servers
-  -v, --verbose                         Show detailed output
-  -f, --format <FORMAT>                 Output format: text or json [default: text] [possible values: text, json, simple, json-short]
-  -j, --json                            Alias for JSON output
-  -S, --short                           Alias for simple / short text output
-  -p, --pretty                          Pretty-print JSON
-      --no-color                        Disable colored output
-  -6, --ipv6                            Use IPv6 resolution only
-      --timeout <TIMEOUT>               Timeout in seconds [default: 5.0]
-  -8, --infinite                        Infinite count mode
-  -i, --interval <INTERVAL>             Interval between queries in seconds (only with --infinite or --count) [default: 1.0]
-  -c, --count <COUNT>                   Specific count of requests [default: 1]
-      --nts                             Use NTS (Network Time Security) for authenticated queries
-      --nts-port <PORT>                 NTS-KE port (default: 4460)
-      --sync                            Apply queried time to system clock (requires root)
-      --dry-run                         Dry run mode for --sync (no actual clock change)
-      --plugin                          Plugin/monitoring mode (Centreon/Nagios/Zabbix)
-      --warning <MS>                    Warning threshold in milliseconds (requires --plugin)
-      --critical <MS>                   Critical threshold in milliseconds (requires --plugin)
-  -h, --help                            Print help
-  -V, --version                         Print version
 ```
+Usage: rkik <COMMAND>
+
+Commands:
+  ntp <target>            Run an NTP probe loop (default if no subcommand is supplied)
+  compare <targets...>    Compare >= 2 servers concurrently
+  ptp <target>            IEEE-1588/PTP probe (Linux-only feature flag)
+  sync <target>           One-shot synchronization helper
+  diag <target>           Verbose diagnostic run (single shot)
+  config <subcommand>     Inspect or update defaults (timeout/format/ipv6)
+  preset <subcommand>     Manage reusable argument presets
+  help                    Print help for the chosen command
+
+Each probe-oriented subcommand accepts the familiar options (`--count`, `--interval`, `--format`, `--plugin`, `--warning`, `--critical`, `--nts`, `--ipv6`, etc.). The legacy one-shot CLI still works: running `rkik <target>` without a subcommand automatically falls back to the historical parser (with a deprecation warning).
+```
+
+### Configuration & presets
+- Defaults (timeout/format/ipv6) and presets live in `$RKIK_CONFIG_DIR/config.toml`. If the env var is unset, rkik falls back to the platform config directory (e.g. `~/.config/rkik`).
+- Update defaults via `rkik config set default-timeout 3.5`, inspect with `rkik config list`, and clear with `rkik config clear default-format`.
+- Store reusable scenarios with `rkik preset add nightly -- ntp pool.ntp.org --count 5`. Run them via `rkik preset run nightly`, which spawns rkik with the recorded arguments.
+- JSON payloads follow the same verbosity rules as the CLI: add `-v/--verbose` to include `stratum`, `ref_id`, and `timestamp` fields; without it these keys are omitted for a leaner output.
+
 
 --- 
 
