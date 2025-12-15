@@ -205,7 +205,6 @@ impl Default for LegacyArgs {
 }
 
 pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
-
     // alias --json
     if args.json {
         args.format = OutputFormat::Json;
