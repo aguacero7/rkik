@@ -8,15 +8,25 @@ use tracing::instrument;
 use super::query::query_one;
 
 /// Query many targets concurrently and return all successful [`ProbeResult`]s.
+///
+/// # Arguments
+///
+/// * `targets` - List of target servers to query
+/// * `ipv6_only` - Whether to use IPv6
+/// * `timeout` - Timeout duration
+/// * `use_nts` - Whether to use NTS (Network Time Security) authentication
+/// * `nts_port` - NTS-KE port number
 #[instrument(skip(timeout))]
 pub async fn compare_many(
     targets: &[String],
     ipv6_only: bool,
     timeout: Duration,
+    use_nts: bool,
+    nts_port: u16,
 ) -> Result<Vec<ProbeResult>, RkikError> {
     let futures = targets
         .iter()
-        .map(|t| query_one(t, ipv6_only, timeout))
+        .map(|t| query_one(t, ipv6_only, timeout, use_nts, nts_port))
         .collect::<Vec<_>>();
     let results = join_all(futures).await;
     let mut out = Vec::new();

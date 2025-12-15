@@ -4,6 +4,9 @@ use std::net::IpAddr;
 #[cfg(feature = "json")]
 use serde::Serialize;
 
+#[cfg(feature = "nts")]
+use crate::adapters::nts_client::NtsKeData;
+
 /// Target host resolved to an IP address.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "json", derive(Serialize))]
@@ -24,5 +27,8 @@ pub struct ProbeResult {
     pub ref_id: String,
     pub utc: DateTime<Utc>,
     pub local: DateTime<Local>,
-    pub timestamp: i64, // Unix timestamp
+    pub timestamp: i64,      // Unix timestamp
+    pub authenticated: bool, // Whether NTS authentication was used
+    #[cfg(feature = "nts")]
+    pub nts_ke_data: Option<NtsKeData>, // NTS-KE diagnostic data (only with nts feature)
 }

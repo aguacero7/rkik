@@ -52,3 +52,5 @@ rkik --server time.cloudflare.com --count 2 --interval 1 --short
 - [Developer Guide](developer_guide.md)
 - [API Reference](api_reference.md)
 - [Packaging](packaging.md)
+- [PTP Implementation Design](PTP_IMPLEMENTATION_DESIGN.md)
+- [Local Test Environment](TEST_ENV.md)
