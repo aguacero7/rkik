@@ -1,5 +1,66 @@
 # RKIK - Changelog
 
+## [Unreleased]
+
+### Added
+- **NTS (Network Time Security) support** - Full RFC 8915 implementation
+  - `--nts` flag to enable NTS authentication
+  - `--nts-port` to specify custom NTS-KE port (default: 4460)
+  - NTS enabled by default in builds (feature flag `nts`)
+  - Complete NTS-KE diagnostics in verbose mode:
+    - Handshake duration measurement
+    - Cookie count and sizes
+    - AEAD algorithm negotiation details
+    - NTP server address (may differ from NTS-KE server)
+  - **TLS Certificate information** (requires rkik-nts v0.3.0+):
+    - Subject and Issuer
+    - Validity period (valid_from, valid_until)
+    - Serial number
+    - Subject Alternative Names (SANs)
+    - Signature and public key algorithms
+    - SHA-256 fingerprint
+    - Self-signed certificate detection with warning
+  - Full JSON export support for all NTS diagnostics
+  - Compatible with all existing features (compare, plugin mode, etc.)
+
+### Changed
+- **Default features**: NTS is now included by default alongside `json` and `sync`
+- **Dependency updates**:
+  - `rkik-nts` upgraded from v0.2.0 to v0.3.0 (adds certificate support)
+
+### Improved
+- **Verbose mode enhancements**:
+  - Comprehensive NTS-KE diagnostics section
+  - TLS certificate details with color-coded output
+  - Self-signed certificate warnings
+  - Cookie size breakdown
+- **JSON output**:
+  - Full NTS-KE metadata in verbose JSON mode
+  - Certificate information included in JSON exports
+  - Backwards compatible with non-NTS queries
+
+### Examples
+```bash
+# NTS query with full diagnostics
+rkik --nts --verbose time.cloudflare.com
+
+# NTS comparison between servers
+rkik --nts --compare time.cloudflare.com nts.netnod.se
+
+# JSON export with NTS diagnostics
+rkik --nts --verbose --format json --pretty time.cloudflare.com
+
+# Standard NTP still works as before
+rkik pool.ntp.org
+```
+
+### Security
+- NTS provides cryptographic authentication of NTP packets
+- TLS certificate verification with chain of trust validation
+- Detection and warning for self-signed certificates
+
+---
+
 ## [1.2.1] - 2025-11-25
 
 ### Fixed

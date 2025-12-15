@@ -8,8 +8,12 @@ use std::time::Duration;
 
 use crate::error::RkikError;
 
+#[cfg(feature = "json")]
+use serde::Serialize;
+
 /// Result of an NTS time query containing all relevant timing and authentication data.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "json", derive(Serialize))]
 pub struct NtsTimeResult {
     /// The network time received from the NTS server
     pub network_time: DateTime<Utc>,
@@ -21,6 +25,53 @@ pub struct NtsTimeResult {
     pub authenticated: bool,
     /// Server hostname
     pub server: String,
+    /// NTS-KE diagnostic data
+    pub nts_ke_data: Option<NtsKeData>,
+}
+
+/// NTS-KE (Key Exchange) diagnostic data
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+pub struct NtsKeData {
+    /// Duration of the NTS-KE handshake (TLS + key exchange)
+    pub ke_duration_ms: f64,
+    /// Number of cookies received from the server
+    pub cookie_count: usize,
+    /// Sizes of each cookie in bytes
+    pub cookie_sizes: Vec<usize>,
+    /// AEAD algorithm negotiated (e.g., "AEAD_AES_SIV_CMAC_256")
+    pub aead_algorithm: String,
+    /// NTP server address (may differ from NTS-KE server)
+    pub ntp_server: String,
+    /// TLS certificate information (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub certificate: Option<CertificateInfo>,
+}
+
+/// TLS Certificate information from NTS-KE handshake
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+pub struct CertificateInfo {
+    /// Subject of the certificate (CN, O, etc.)
+    pub subject: String,
+    /// Issuer of the certificate
+    pub issuer: String,
+    /// Certificate validity period start (RFC3339 format)
+    pub valid_from: String,
+    /// Certificate validity period end (RFC3339 format)
+    pub valid_until: String,
+    /// Serial number (hex format)
+    pub serial_number: String,
+    /// Subject Alternative Names (DNS names)
+    pub san_dns_names: Vec<String>,
+    /// Signature algorithm
+    pub signature_algorithm: String,
+    /// Public key algorithm
+    pub public_key_algorithm: String,
+    /// Certificate fingerprint (SHA-256, hex format)
+    pub fingerprint_sha256: String,
+    /// Whether the certificate is self-signed
+    pub is_self_signed: bool,
 }
 
 /// Query an NTS-enabled server and return the authenticated time result.
@@ -65,6 +116,8 @@ pub async fn query_nts(
 
     // Create and connect NTS client
     let mut client = NtsClient::new(config);
+
+    // Perform NTS-KE handshake
     client
         .connect()
         .await
@@ -75,6 +128,32 @@ pub async fn query_nts(
         .get_time()
         .await
         .map_err(|e| RkikError::Nts(format!("NTS time query failed: {}", e)))?;
+
+    // Capture NTS-KE diagnostic data from the client
+    let nts_ke_data = client.nts_ke_info().map(|ke_result| {
+        // Convert rkik-nts CertificateInfo to our CertificateInfo
+        let certificate = ke_result.certificate.as_ref().map(|cert| CertificateInfo {
+            subject: cert.subject.clone(),
+            issuer: cert.issuer.clone(),
+            valid_from: cert.valid_from.clone(),
+            valid_until: cert.valid_until.clone(),
+            serial_number: cert.serial_number.clone(),
+            san_dns_names: cert.san_dns_names.clone(),
+            signature_algorithm: cert.signature_algorithm.clone(),
+            public_key_algorithm: cert.public_key_algorithm.clone(),
+            fingerprint_sha256: cert.fingerprint_sha256.clone(),
+            is_self_signed: cert.is_self_signed,
+        });
+
+        NtsKeData {
+            ke_duration_ms: ke_result.ke_duration().as_secs_f64() * 1000.0,
+            cookie_count: ke_result.cookie_count(),
+            cookie_sizes: ke_result.cookie_sizes(),
+            aead_algorithm: ke_result.aead_algorithm.clone(),
+            ntp_server: ke_result.ntp_server.to_string(),
+            certificate,
+        }
+    });
 
     // Convert SystemTime to DateTime<Utc>
     let network_time: DateTime<Utc> = time_snapshot.network_time.into();
@@ -93,6 +172,7 @@ pub async fn query_nts(
         rtt_ms,
         authenticated: time_snapshot.authenticated,
         server: time_snapshot.server.clone(),
+        nts_ke_data,
     })
 }
 

@@ -24,10 +24,11 @@ include = [ #for CI to not publish artifacts
 name = "rkik"
 path = "src/bin/rkik.rs"
 [features]
-default = ["json","sync"]
+default = ["json", "sync", "nts"]
 json = ["serde", "serde_json"]
 sync = ["libc"]
 nts = ["rkik-nts"]
+ptp = ["statime"]
 network-tests = []
 
 [dependencies]
@@ -42,7 +43,8 @@ serde_json = { version = "1.0.143", optional = true }
 thiserror = "2.0.16"
 tracing = "0.1"
 libc = { version = "0.2.175", optional = true }
-rkik-nts = { version = "0.2.0", optional = true }
+rkik-nts = { version = "0.3.0", optional = true }
+statime = { version = "0.3.0", optional = true }
 
 
 [dev-dependencies]
