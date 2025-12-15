@@ -1,8 +1,11 @@
 # RKIK - Changelog
 
 ## [Unreleased
+---
+## [2.0.0] - 2025-12-15
 
 ### Added
+
 - **NTS (Network Time Security) support** - Full RFC 8915 implementation
   - `--nts` flag to enable NTS authentication
   - `--nts-port` to specify custom NTS-KE port (default: 4460)
