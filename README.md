@@ -111,7 +111,7 @@ cargo build --release --no-default-features --features "json,ptp"
 | `rkik time.google.com -8 -j`         | Continuously query a server and display a raw json output (useful for monitoring scripts)          |
 | `rkik es.pool.ntp.org -S `         | Query a server and display a short minimalist output           |
 | `rkik -C ntp1 ntp2 -c 2 -i 0.1 --nocolor`         | Compare 2 servers twice with an interval of 100ms and display a nocolor output           |
-| `rkik -S time.google.com --sync`         | Query a server and apply returned time to system (sync feature -> requires root or specific permissions))          |
+| `rkik -S time.google.com --sync`         | Query a server and apply returned time to system (sync feature -> requires root or specific permissions)          |
 | `rkik time.cloudflare.com --nts` | Query an NTS-enabled server with cryptographic authentication |
 | `rkik time.cloudflare.com --nts -v` | NTS query with full diagnostics (handshake, cookies, TLS certificate) |
 | `rkik --compare nts.ntp.se time.cloudflare.com --nts -v` | Compare multiple NTS servers with verbose output |
