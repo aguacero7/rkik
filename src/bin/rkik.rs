@@ -427,16 +427,13 @@ fn apply_output_options(
     args.verbose = opts.verbose;
     args.pretty = opts.pretty;
     args.no_color = opts.no_color;
-    let mut format = opts
-        .format
-        .clone()
-        .or_else(|| {
-            defaults
-                .format
-                .as_deref()
-                .and_then(|s| OutputFormat::from_str(s, false).ok())
-        })
-        .unwrap_or(OutputFormat::Text);
+    let mut format = opts.format.clone();
+    if format.is_none() {
+        if let Some(cfg_fmt) = parse_default_format(defaults)? {
+            format = Some(cfg_fmt);
+        }
+    }
+    let mut format = format.unwrap_or(OutputFormat::Text);
     if opts.json {
         format = OutputFormat::Json;
     } else if opts.short {
@@ -450,6 +447,19 @@ fn apply_plugin_options(args: &mut LegacyArgs, opts: &PluginOptions) {
     args.plugin = opts.plugin;
     args.warning = opts.warning;
     args.critical = opts.critical;
+}
+
+fn parse_default_format(defaults: &Defaults) -> Result<Option<OutputFormat>, String> {
+    if let Some(raw) = defaults.format.as_deref() {
+        OutputFormat::from_str(raw, false).map(Some).map_err(|_| {
+            format!(
+                "Invalid default format '{}' in rkik config. Use text, json, json-short, or simple.",
+                raw
+            )
+        })
+    } else {
+        Ok(None)
+    }
 }
 
 fn handle_config(cmd: ConfigCommand, config: &mut ConfigStore) -> Result<(), String> {
