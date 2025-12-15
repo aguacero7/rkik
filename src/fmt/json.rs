@@ -23,6 +23,7 @@ pub struct JsonProbe {
     pub ref_id: Option<String>,
     pub utc: String,
     pub local: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<i64>,
     pub authenticated: bool,
     #[cfg(feature = "nts")]
@@ -262,5 +263,49 @@ pub fn to_short_json(results: &[ProbeResult], pretty: bool) -> Result<String, Rk
     #[cfg(not(feature = "json"))]
     {
         Err(RkikError::Other("json feature disabled".into()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::ntp::{ProbeResult, Target};
+    use std::net::IpAddr;
+
+    fn sample_probe() -> ProbeResult {
+        let utc = chrono::Utc::now();
+        let local: chrono::DateTime<chrono::Local> = chrono::DateTime::from(utc);
+        ProbeResult {
+            target: Target {
+                name: "example".into(),
+                ip: "127.0.0.1".parse::<IpAddr>().unwrap(),
+                port: 123,
+            },
+            offset_ms: 0.0,
+            rtt_ms: 0.5,
+            stratum: 1,
+            ref_id: "LOCL".into(),
+            utc,
+            local,
+            timestamp: 1,
+            authenticated: false,
+            #[cfg(feature = "nts")]
+            nts_ke_data: None,
+        }
+    }
+
+    #[test]
+    fn timestamp_hidden_when_not_verbose() {
+        let probe = sample_probe();
+        let json = to_json(std::slice::from_ref(&probe), false, false).unwrap();
+        assert!(
+            !json.contains("timestamp"),
+            "timestamp should be omitted when not verbose: {json}"
+        );
+        let json_verbose = to_json(std::slice::from_ref(&probe), false, true).unwrap();
+        assert!(
+            json_verbose.contains("\"timestamp\": 1"),
+            "timestamp should appear when verbose: {json_verbose}"
+        );
     }
 }

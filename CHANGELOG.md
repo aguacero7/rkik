@@ -30,12 +30,20 @@
 - **Docker-based test environment** (`docs/TEST_ENV.md`)
   - `./scripts/test-env-up.sh` / `test-env-down.sh` wrap `docker compose` to spawn three NTP daemons and a LinuxPTP grandmaster
   - Targets exposed on high UDP ports for local RKIK runs and CI demos
+- **Config + presets**: `rkik config <list|get|set|clear|path>` and `rkik preset <list|add|remove|show|run>` backed by `~/.config/rkik/config.toml` (override via `RKIK_CONFIG_DIR`).
+- **CLI v2 spec** (`docs/cli_v2.md`) documenting the new UX and storage layout.
 
 ### Changed
 - **Default features**: NTS and PTP are now included by default alongside `json` and `sync`
 - **Dependency updates**:
   - `rkik-nts` upgraded from v0.2.0 to v0.3.0 (adds certificate support)
   - `statime` / `statime-linux` pulled in for the PTP plumbing
+- **CLI redesign**:
+  - Introduced subcommands (`ntp`, `compare`, `ptp`, `sync`, `diag`, `config`, `preset`) while keeping the legacy parser for scripts that still call `rkik <target>`.
+  - Top-level help now focuses on the subcommand workflow; `--help`/`--version` run through the modern parser automatically.
+  - Added TOML-backed defaults and presets with env override support.
+- `rkik help [command]` now prints the modern help output without triggering the legacy path, and legacy invocations stay silent (no more deprecation warning).
+- JSON output omits the `timestamp` field when not in verbose mode to avoid confusing `null` entries.
 
 ### Improved
 - **Verbose mode enhancements**:
@@ -49,6 +57,7 @@
   - Backwards compatible with non-NTS queries
 - **Tests**:
   - Added deterministic unit tests for the PTP text/JSON renderers and stats helpers (no network dependency).
+  - Added CLI tests for the new subcommands, config path override, and preset storage.
 - **CI**:
   - GitHub Actions now caches build artifacts, runs `cargo fmt`/`clippy -D warnings`, and executes builds/tests across default, minimal, and full feature sets (excluding `network-tests`) to ensure the `ptp` feature stays covered.
 
