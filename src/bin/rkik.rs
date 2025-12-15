@@ -10,6 +10,7 @@ use tokio::signal;
 use rkik::{
     ProbeResult, RkikError, compare_many, fmt, query_one,
     stats::{Stats, compute_stats},
+    tui::{TuiApp, run_tui},
 };
 #[cfg(all(feature = "ptp", target_os = "linux"))]
 use rkik::{
@@ -309,6 +310,12 @@ async fn main() {
 
     let exit_code = match (&args.compare, &args.server, &args.target) {
         (Some(list), _, _) => {
+            // Use TUI mode for compare if --infinite is set and format is text
+            if args.infinite && matches!(args.format, OutputFormat::Text) && !args.verbose {
+                compare_loop_tui(list, &args, timeout).await;
+                return;
+            }
+
             #[cfg(feature = "nts")]
             let (use_nts, nts_port) = (args.nts, args.nts_port);
             #[cfg(not(feature = "nts"))]
@@ -444,7 +451,128 @@ async fn main() {
     process::exit(exit_code);
 }
 
+async fn compare_loop_tui(list: &[String], args: &Args, timeout: Duration) {
+    #[cfg(feature = "nts")]
+    let (use_nts, nts_port) = (args.nts, args.nts_port);
+    #[cfg(not(feature = "nts"))]
+    let (use_nts, nts_port) = (false, 4460u16);
+
+    let interval = Duration::from_secs_f64(args.interval);
+    let mut tui_app = TuiApp::new(list.to_vec());
+
+    // Channel to communicate between async query task and TUI
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Vec<Result<ProbeResult, String>>>();
+
+    // Spawn async query task
+    let list_clone = list.to_vec();
+    let ipv6 = args.ipv6;
+    tokio::spawn(async move {
+        loop {
+            let mut cycle_results = Vec::new();
+
+            match compare_many(&list_clone, ipv6, timeout, use_nts, nts_port).await {
+                Ok(results) => {
+                    for res in results {
+                        cycle_results.push(Ok(res));
+                    }
+                }
+                Err(e) => {
+                    // Send error for all servers
+                    for server in &list_clone {
+                        cycle_results.push(Err(format!("{}: {}", server, e)));
+                    }
+                }
+            }
+
+            if tx.send(cycle_results).is_err() {
+                break;
+            }
+
+            tokio::time::sleep(interval).await;
+        }
+    });
+
+    let _ = run_tui(&mut tui_app, |app| {
+        // Check for new results
+        while let Ok(cycle_results) = rx.try_recv() {
+            app.start_new_cycle();
+
+            for result in cycle_results {
+                match result {
+                    Ok(res) => {
+                        app.update_server(&res.target.name, &res);
+                    }
+                    Err(err_msg) => {
+                        // Extract server name from error message
+                        if let Some(server_name) = err_msg.split(':').next() {
+                            app.update_server_error(server_name, err_msg.clone());
+                        }
+                    }
+                }
+            }
+        }
+        Ok(true)
+    });
+}
+
+async fn query_loop_tui(target: &str, args: &Args, timeout: Duration) {
+    #[cfg(feature = "nts")]
+    let (use_nts, nts_port) = (args.nts, args.nts_port);
+    #[cfg(not(feature = "nts"))]
+    let (use_nts, nts_port) = (false, 4460u16);
+
+    let interval = Duration::from_secs_f64(args.interval);
+    let mut tui_app = TuiApp::new(vec![target.to_string()]);
+
+    // We need to run TUI in a blocking context, so we'll use a channel
+    // to communicate between the async query task and the TUI
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Option<ProbeResult>>();
+
+    // Spawn async query task
+    let target_clone = target.to_string();
+    let ipv6 = args.ipv6;
+    tokio::spawn(async move {
+        loop {
+            match query_one(&target_clone, ipv6, timeout, use_nts, nts_port).await {
+                Ok(res) => {
+                    if tx.send(Some(res)).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => {
+                    if tx.send(None).is_err() {
+                        break;
+                    }
+                }
+            }
+            tokio::time::sleep(interval).await;
+        }
+    });
+
+    let _ = run_tui(&mut tui_app, |app| {
+        // Check for new results
+        while let Ok(result_opt) = rx.try_recv() {
+            match result_opt {
+                Some(res) => {
+                    app.update_server(&res.target.name, &res);
+                }
+                None => {
+                    app.update_server_error(target, "Query failed".to_string());
+                }
+            }
+            app.start_new_cycle();
+        }
+        Ok(true)
+    });
+}
+
 async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
+    // Use TUI mode if --infinite is set and output is text
+    if args.infinite && matches!(args.format, OutputFormat::Text) && !args.verbose && !args.plugin {
+        query_loop_tui(target, args, timeout).await;
+        return;
+    }
+
     let mut all = Vec::new();
     let mut n = 0u32;
 

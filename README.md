@@ -16,6 +16,7 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
   - **NTS (RFC 8915)** authenticated sessions with full TLS/NTS-KE diagnostics
 - **PTP (IEEE 1588-2019)** measurements (Linux-only), including master identity, clock quality, packet stats, and diagnostics in both text and JSON formats
 - **Flexible output**: human-readable, verbose, simple/short, JSON, or compact JSON lines
+- **Interactive TUI**: real-time dashboard for `--infinite` monitoring mode with live statistics, progress tracking, and keyboard controls
 - **Compare / monitoring**: asynchronous comparison across any number of targets, plugin/Nagios output with thresholds, and continuous/infinite sampling modes
 - **Ergonomics**: `host[:port]` parsing (including `[IPv6]:port`), colorized or plain text, JSON pretty-print, and optional one-shot system sync
 - **Developer-friendly**: reusable library API, async-friendly design, and a Docker lab for local NTP/PTP testing
@@ -113,6 +114,8 @@ cargo build --release --no-default-features --features "json,ptp"
 | `rkik --server time.google.com -v`        | Verbose query output                       |
 | `rkik --server time.cloudflare.com -jp`| JSON output for a single server            |
 | `rkik --compare pool.ntp.org time.google.com`    | Compare two servers                        |
+| `rkik time.google.com -8`         | Interactive TUI dashboard for continuous monitoring          |
+| `rkik -C time.google.com pool.ntp.org -8`         | Interactive TUI for comparing multiple servers          |
 | `rkik time.google.com -8 -j`         | Continuously query a server and display a raw json output (useful for monitoring scripts)          |
 | `rkik es.pool.ntp.org -S `         | Query a server and display a short minimalist output           |
 | `rkik -C ntp1 ntp2 -c 2 -i 0.1 --nocolor`         | Compare 2 servers twice with an interval of 100ms and display a nocolor output           |
@@ -125,6 +128,57 @@ cargo build --release --no-default-features --features "json,ptp"
 | `rkik --ptp --ptp-domain 24 --ptp-event-port 3319 127.0.0.1` | Probe a lab grandmaster on custom ports (see Docker lab) |
 | `rkik --ptp --compare 192.168.1.100 192.168.1.101 --format json` | Compare multiple PTP masters with JSON output |
 
+
+---
+
+## Interactive TUI (Terminal User Interface)
+
+When using the `--infinite` flag for continuous monitoring, RKIK automatically launches an **interactive dashboard** that provides real-time visualization of your NTP monitoring.
+
+### Features
+
+- **Live Progress Tracking**: See exactly how many servers have been queried in the current cycle (e.g., "3/5 servers completed")
+- **Global Statistics Panel**:
+  - Total queries executed
+  - Success/failure count and success rate percentage
+  - Average offset and delay across all servers
+  - Min/max offset range
+  - Current cycle number
+- **Server List View**: Real-time status for each monitored server
+  - ✓ Success (green) / ✗ Error (red) / ○ Not yet queried (gray)
+  - Latest offset, delay, and stratum values
+  - Automatically updates as new data arrives
+- **Keyboard Controls**:
+  - `q` or `Esc`: Quit monitoring
+  - `p`: Pause/Resume queries
+
+### Usage
+
+The TUI activates automatically when using `--infinite` with text output format:
+
+```bash
+# Single server monitoring with TUI
+rkik --infinite time.google.com
+
+# Monitor multiple servers with TUI
+rkik --infinite --compare pool.ntp.org time.cloudflare.com time.google.com
+
+# Custom interval (update every 2 seconds)
+rkik --infinite --interval 2 pool.ntp.org
+```
+
+### Disabling TUI
+
+The TUI is bypassed in these cases (traditional scrolling output):
+- Using `--verbose` flag
+- Using `--json` or other non-text formats
+- Using `--plugin` mode
+
+```bash
+# These will use traditional scrolling output instead of TUI
+rkik --infinite --verbose time.google.com
+rkik --infinite --json time.google.com
+```
 
 ---
 

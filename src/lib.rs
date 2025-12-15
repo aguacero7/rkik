@@ -6,6 +6,7 @@ mod error;
 pub mod fmt;
 pub mod services;
 pub mod stats;
+pub mod tui;
 
 pub use domain::ntp::{ProbeResult, Target};
 #[cfg(all(feature = "ptp", target_os = "linux"))]

@@ -3,6 +3,18 @@
 ## [Unreleased]
 
 ### Added
+- **Interactive TUI for infinite monitoring mode**
+  - New interactive dashboard when using `--infinite` flag with text output
+  - Real-time display shows:
+    - Progress tracking (X/Y servers completed per cycle)
+    - Global statistics (avg offset, delay, success rate, min/max)
+    - Live server list with status indicators (✓/✗/○)
+    - Current cycle number and total queries
+  - Keyboard controls:
+    - `q` or `Esc`: Quit monitoring
+    - `p`: Pause/Resume queries
+  - Auto-activates for `--infinite` mode (single server or compare mode)
+  - Falls back to standard scrolling output with `--verbose` or `--json`
 - **NTS (Network Time Security) support** - Full RFC 8915 implementation
   - `--nts` flag to enable NTS authentication
   - `--nts-port` to specify custom NTS-KE port (default: 4460)
@@ -36,6 +48,7 @@
 - **Dependency updates**:
   - `rkik-nts` upgraded from v0.2.0 to v0.3.0 (adds certificate support)
   - `statime` / `statime-linux` pulled in for the PTP plumbing
+  - `ratatui` v0.29 and `crossterm` v0.28 added for TUI support
 
 ### Improved
 - **Verbose mode enhancements**:
@@ -54,6 +67,18 @@
 
 ### Examples
 ```bash
+# Interactive TUI monitoring (single server)
+rkik --infinite time.google.com
+
+# Interactive TUI for comparing multiple servers
+rkik --infinite --compare time.google.com time.cloudflare.com pool.ntp.org
+
+# TUI with custom interval (updates every 2 seconds)
+rkik --infinite --interval 2 pool.ntp.org
+
+# Traditional scrolling output (no TUI) with verbose mode
+rkik --infinite --verbose time.google.com
+
 # NTS query with full diagnostics
 rkik --nts --verbose time.cloudflare.com
 

@@ -74,9 +74,40 @@ rkik -6 --server 2.pool.ntp.org -j
 # two measurements, 1s apart
 rkik --server time.cloudflare.com --count 2 --interval 1 --short
 
-# infinite loop (Ctrl-C to stop)
+# infinite loop with interactive TUI dashboard
+rkik --infinite time.google.com
+
+# infinite loop with traditional scrolling output (JSON format)
 rkik --server time.google.com --infinite --format json
 ```
+
+### Interactive TUI (Terminal User Interface)
+
+When using `--infinite` mode with text output, RKIK displays an **interactive dashboard** instead of scrolling text:
+
+```bash
+# Single server TUI monitoring
+rkik --infinite pool.ntp.org
+
+# Multiple servers TUI monitoring
+rkik --infinite --compare time.google.com time.cloudflare.com pool.ntp.org
+
+# TUI with custom update interval (every 3 seconds)
+rkik --infinite --interval 3 0.pool.ntp.org
+```
+
+**TUI Features:**
+- Real-time progress: "X / Y servers completed" for current cycle
+- Global statistics: average offset/delay, success rate, min/max values
+- Server list with live status: ✓ (success), ✗ (error), ○ (pending)
+- Keyboard controls: `q` to quit, `p` to pause/resume
+
+**Disabling TUI:**
+The TUI is automatically bypassed when using:
+- `--verbose` (detailed output)
+- `--json` or other non-text formats
+- `--plugin` mode
+
 For ingestion into a SIEM/log pipeline, prefer `--format json` and collect **one JSON object per line**.
 
 ### Targets `host[:port]`
