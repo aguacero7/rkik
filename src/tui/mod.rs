@@ -1,19 +1,19 @@
-use std::io::{self, stdout};
-use std::time::{Duration, Instant};
+use crate::domain::ntp::ProbeResult;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
+    event::{self, Event, KeyCode, KeyEventKind},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame, Terminal,
 };
-use crate::domain::ntp::ProbeResult;
+use std::io::{self, stdout};
+use std::time::{Duration, Instant};
 
 /// Server status for TUI display
 #[derive(Debug, Clone)]
@@ -119,7 +119,9 @@ impl TuiApp {
     }
 
     fn recalculate_stats(&mut self) {
-        let successful: Vec<_> = self.servers.iter()
+        let successful: Vec<_> = self
+            .servers
+            .iter()
             .filter(|s| s.success && s.offset_ms.is_some())
             .collect();
 
@@ -127,13 +129,9 @@ impl TuiApp {
             return;
         }
 
-        let offsets: Vec<f64> = successful.iter()
-            .filter_map(|s| s.offset_ms)
-            .collect();
+        let offsets: Vec<f64> = successful.iter().filter_map(|s| s.offset_ms).collect();
 
-        let delays: Vec<f64> = successful.iter()
-            .filter_map(|s| s.delay_ms)
-            .collect();
+        let delays: Vec<f64> = successful.iter().filter_map(|s| s.delay_ms).collect();
 
         if !offsets.is_empty() {
             self.stats.avg_offset = offsets.iter().sum::<f64>() / offsets.len() as f64;
@@ -163,11 +161,11 @@ pub fn ui(frame: &mut Frame, app: &TuiApp) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Length(5),  // Progress
-            Constraint::Length(9),  // Global stats
-            Constraint::Min(10),    // Server list
-            Constraint::Length(3),  // Help
+            Constraint::Length(3), // Title
+            Constraint::Length(5), // Progress
+            Constraint::Length(9), // Global stats
+            Constraint::Min(10),   // Server list
+            Constraint::Length(3), // Help
         ])
         .split(frame.area());
 
@@ -180,26 +178,34 @@ pub fn ui(frame: &mut Frame, app: &TuiApp) {
 
 fn render_title(frame: &mut Frame, area: Rect, _app: &TuiApp) {
     let title = Paragraph::new("RKIK - Infinite Monitoring Mode")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .block(Block::default().borders(Borders::ALL));
     frame.render_widget(title, area);
 }
 
 fn render_progress(frame: &mut Frame, area: Rect, app: &TuiApp) {
     let progress_text = if app.paused {
-        format!("⏸  PAUSED - Cycle #{} - {} / {} servers completed",
-            app.stats.current_cycle,
-            app.completed_this_cycle,
-            app.total_servers)
+        format!(
+            "⏸  PAUSED - Cycle #{} - {} / {} servers completed",
+            app.stats.current_cycle, app.completed_this_cycle, app.total_servers
+        )
     } else {
-        format!("▶  Cycle #{} - {} / {} servers completed",
-            app.stats.current_cycle,
-            app.completed_this_cycle,
-            app.total_servers)
+        format!(
+            "▶  Cycle #{} - {} / {} servers completed",
+            app.stats.current_cycle, app.completed_this_cycle, app.total_servers
+        )
     };
 
     let progress = Paragraph::new(progress_text)
-        .style(Style::default().fg(if app.paused { Color::Yellow } else { Color::Green }))
+        .style(Style::default().fg(if app.paused {
+            Color::Yellow
+        } else {
+            Color::Green
+        }))
         .block(Block::default().borders(Borders::ALL).title("Progress"));
     frame.render_widget(progress, area);
 }
@@ -216,7 +222,9 @@ fn render_global_stats(frame: &mut Frame, area: Rect, app: &TuiApp) {
             Span::raw("Total queries: "),
             Span::styled(
                 format!("{}", app.stats.total_queries),
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
@@ -249,78 +257,89 @@ fn render_global_stats(frame: &mut Frame, area: Rect, app: &TuiApp) {
         Line::from(vec![
             Span::raw("Offset range: "),
             Span::styled(
-                format!("[{:.3}, {:.3}] ms", app.stats.min_offset, app.stats.max_offset),
+                format!(
+                    "[{:.3}, {:.3}] ms",
+                    app.stats.min_offset, app.stats.max_offset
+                ),
                 Style::default().fg(Color::Magenta),
             ),
         ]),
     ];
 
-    let stats = Paragraph::new(stats_text)
-        .block(Block::default().borders(Borders::ALL).title("Global Statistics"));
+    let stats = Paragraph::new(stats_text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Global Statistics"),
+    );
     frame.render_widget(stats, area);
 }
 
 fn render_server_list(frame: &mut Frame, area: Rect, app: &TuiApp) {
-    let items: Vec<ListItem> = app.servers.iter().map(|server| {
-        let status_symbol = if server.success {
-            "✓"
-        } else if server.error.is_some() {
-            "✗"
-        } else {
-            "○"
-        };
+    let items: Vec<ListItem> = app
+        .servers
+        .iter()
+        .map(|server| {
+            let status_symbol = if server.success {
+                "✓"
+            } else if server.error.is_some() {
+                "✗"
+            } else {
+                "○"
+            };
 
-        let status_color = if server.success {
-            Color::Green
-        } else if server.error.is_some() {
-            Color::Red
-        } else {
-            Color::Gray
-        };
+            let status_color = if server.success {
+                Color::Green
+            } else if server.error.is_some() {
+                Color::Red
+            } else {
+                Color::Gray
+            };
 
-        let offset_str = server.offset_ms
-            .map(|o| format!("{:>8.3}", o))
-            .unwrap_or_else(|| "     N/A".to_string());
+            let offset_str = server
+                .offset_ms
+                .map(|o| format!("{:>8.3}", o))
+                .unwrap_or_else(|| "     N/A".to_string());
 
-        let delay_str = server.delay_ms
-            .map(|d| format!("{:>8.3}", d))
-            .unwrap_or_else(|| "     N/A".to_string());
+            let delay_str = server
+                .delay_ms
+                .map(|d| format!("{:>8.3}", d))
+                .unwrap_or_else(|| "     N/A".to_string());
 
-        let stratum_str = server.stratum
-            .map(|s| format!("{:>2}", s))
-            .unwrap_or_else(|| " -".to_string());
+            let stratum_str = server
+                .stratum
+                .map(|s| format!("{:>2}", s))
+                .unwrap_or_else(|| " -".to_string());
 
-        let line = Line::from(vec![
-            Span::styled(
-                format!("{} ", status_symbol),
-                Style::default().fg(status_color).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!("{:<30}", server.name),
-                Style::default().fg(Color::White),
-            ),
-            Span::raw(" Offset: "),
-            Span::styled(
-                format!("{} ms", offset_str),
-                Style::default().fg(Color::Cyan),
-            ),
-            Span::raw(" Delay: "),
-            Span::styled(
-                format!("{} ms", delay_str),
-                Style::default().fg(Color::Yellow),
-            ),
-            Span::raw(" Stratum: "),
-            Span::styled(
-                stratum_str,
-                Style::default().fg(Color::Magenta),
-            ),
-        ]);
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("{} ", status_symbol),
+                    Style::default()
+                        .fg(status_color)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("{:<30}", server.name),
+                    Style::default().fg(Color::White),
+                ),
+                Span::raw(" Offset: "),
+                Span::styled(
+                    format!("{} ms", offset_str),
+                    Style::default().fg(Color::Cyan),
+                ),
+                Span::raw(" Delay: "),
+                Span::styled(
+                    format!("{} ms", delay_str),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::raw(" Stratum: "),
+                Span::styled(stratum_str, Style::default().fg(Color::Magenta)),
+            ]);
 
-        ListItem::new(line)
-    }).collect();
+            ListItem::new(line)
+        })
+        .collect();
 
-    let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Servers"));
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Servers"));
     frame.render_widget(list, area);
 }
 
