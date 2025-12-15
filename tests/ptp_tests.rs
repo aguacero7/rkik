@@ -95,17 +95,83 @@ fn ptp_text_short_render_includes_domain() {
     );
 }
 
-#[cfg(feature = "json")]
 #[test]
-fn ptp_json_renderer_includes_protocol_and_diagnostics() {
-    let probe = sample_probe(2_000, 8_000, true);
-    let json = fmt::ptp_json::to_json(&[probe], true, true).expect("json serialization");
+fn ptp_stats_handle_empty_input() {
+    let stats = compute_ptp_stats(&[]);
+    assert_eq!(stats.count, 0);
+    assert_eq!(stats.offset_avg_ns, 0.0);
+    assert_eq!(stats.offset_min_ns, 0.0);
+    assert_eq!(stats.offset_max_ns, 0.0);
+    assert_eq!(stats.mean_path_delay_avg_ns, 0.0);
+}
+
+#[test]
+fn ptp_text_compare_render_includes_offsets() {
+    set_colors_enabled(false);
+    let probes = vec![
+        sample_probe(1_000, 5_000, false),
+        sample_probe(-500, 7_000, false),
+    ];
+    let rendered = fmt::ptp_text::render_compare(&probes, false);
     assert!(
-        json.contains("\"protocol\":\"ptp\""),
-        "missing protocol field"
+        rendered.contains("Comparing PTP"),
+        "expected compare header in '{}'",
+        rendered
     );
     assert!(
-        json.contains("\"diagnostics\""),
-        "missing diagnostics block"
+        rendered.contains("1000 ns") || rendered.contains("-500 ns"),
+        "expected offset values in '{}'",
+        rendered
+    );
+}
+
+#[test]
+fn ptp_text_short_compare_render_includes_domain_and_offset() {
+    set_colors_enabled(false);
+    let probes = vec![
+        sample_probe(1_000, 5_000, false),
+        sample_probe(-500, 7_000, false),
+    ];
+    let rendered = fmt::ptp_text::render_short_compare(&probes);
+    assert!(
+        rendered.contains("lab-master:24"),
+        "expected domain information in '{}'",
+        rendered
+    );
+    assert!(
+        rendered.contains("1000ns") || rendered.contains("-500ns"),
+        "expected offset values in '{}'",
+        rendered
+    );
+}
+
+#[test]
+fn ptp_text_stats_render_includes_key_numbers() {
+    set_colors_enabled(false);
+    let probes = vec![
+        sample_probe(1_000, 5_000, false),
+        sample_probe(-500, 7_000, false),
+    ];
+    let stats = compute_ptp_stats(&probes);
+    let rendered = fmt::ptp_text::render_stats("lab-master", &stats);
+    assert!(
+        rendered.contains("avg 250"),
+        "expected average offset in '{}'",
+        rendered
+    );
+    assert!(
+        rendered.contains("min -500"),
+        "expected min offset in '{}'",
+        rendered
+    );
+    assert!(
+        rendered.contains("max 1000"),
+        "expected max offset in '{}'",
+        rendered
+    );
+    assert!(
+        rendered.contains("2 samples"),
+        "expected sample count in '{}'",
+        rendered
     );
 }

@@ -48,7 +48,17 @@ pub struct PtpStats {
 
 #[cfg(feature = "ptp")]
 pub fn compute_ptp_stats(results: &[PtpProbeResult]) -> PtpStats {
-    let count = results.len().max(1);
+    if results.is_empty() {
+        return PtpStats {
+            count: 0,
+            offset_avg_ns: 0.0,
+            offset_min_ns: 0.0,
+            offset_max_ns: 0.0,
+            mean_path_delay_avg_ns: 0.0,
+        };
+    }
+
+    let count = results.len();
     let offset_avg_ns = results.iter().map(|r| r.offset_ns as f64).sum::<f64>() / count as f64;
     let offset_min_ns = results
         .iter()
@@ -65,7 +75,7 @@ pub fn compute_ptp_stats(results: &[PtpProbeResult]) -> PtpStats {
         / count as f64;
 
     PtpStats {
-        count: results.len(),
+        count,
         offset_avg_ns,
         offset_min_ns,
         offset_max_ns,
