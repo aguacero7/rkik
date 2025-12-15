@@ -93,6 +93,42 @@ rkik --no-color
 NO_COLOR=1 rkik ...
 ```
 
+## Precision Time Protocol (PTP)
+
+RKIK can inspect IEEE 1588 masters using the new `--ptp` mode (feature `ptp`, enabled by default).
+
+```bash
+# Basic probe against domain 0 (default ports 319/320)
+rkik --ptp 192.0.2.1
+
+# Custom domain and ports (useful for lab setups)
+rkik --ptp --ptp-domain 24 --ptp-event-port 3319 --ptp-general-port 3320 127.0.0.1
+
+# Verbose JSON output with diagnostics
+rkik --ptp --verbose --format json --pretty ptp.lab.local
+```
+
+Available flags:
+- `--ptp` — enable PTP mode (mutually exclusive with `--nts`/`--sync`)
+- `--ptp-domain` — domain number (default `0`)
+- `--ptp-event-port` / `--ptp-general-port` — override UDP ports (defaults `319`/`320`)
+- `--ptp-hw-timestamp` — request hardware timestamping (reported in diagnostics)
+
+PTP shares the existing features (compare mode, plugin mode, JSON/short outputs). Offsets are displayed in nanoseconds and detailed master metadata appears in verbose mode.
+
+## Local Test Environment
+
+A ready-made Docker Compose lab with three NTP servers and a LinuxPTP grandmaster is included.
+
+```bash
+./scripts/test-env-up.sh           # start containers
+rkik 127.0.0.1:3123                # query lab NTP primary
+rkik --ptp --ptp-event-port 3319 127.0.0.1   # query lab PTP master
+./scripts/test-env-down.sh         # stop containers
+```
+
+See [docs/TEST_ENV.md](TEST_ENV.md) for topology details, port mapping, and troubleshooting tips.
+
 ## Troubleshooting
 - **Resolution failed**: check DNS / try `-6` if needed.
 - **Timeout**: open UDP/123.

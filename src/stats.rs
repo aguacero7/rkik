@@ -1,4 +1,6 @@
 use crate::domain::ntp::ProbeResult;
+#[cfg(feature = "ptp")]
+use crate::domain::ptp::PtpProbeResult;
 #[cfg(feature = "json")]
 use serde::Serialize;
 
@@ -30,5 +32,43 @@ pub fn compute_stats(results: &[ProbeResult]) -> Stats {
         offset_min,
         offset_max,
         rtt_avg,
+    }
+}
+
+#[cfg(feature = "ptp")]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+pub struct PtpStats {
+    pub count: usize,
+    pub offset_avg_ns: f64,
+    pub offset_min_ns: f64,
+    pub offset_max_ns: f64,
+    pub mean_path_delay_avg_ns: f64,
+}
+
+#[cfg(feature = "ptp")]
+pub fn compute_ptp_stats(results: &[PtpProbeResult]) -> PtpStats {
+    let count = results.len().max(1);
+    let offset_avg_ns = results.iter().map(|r| r.offset_ns as f64).sum::<f64>() / count as f64;
+    let offset_min_ns = results
+        .iter()
+        .map(|r| r.offset_ns as f64)
+        .fold(f64::INFINITY, f64::min);
+    let offset_max_ns = results
+        .iter()
+        .map(|r| r.offset_ns as f64)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let mean_path_delay_avg_ns = results
+        .iter()
+        .map(|r| r.mean_path_delay_ns as f64)
+        .sum::<f64>()
+        / count as f64;
+
+    PtpStats {
+        count: results.len(),
+        offset_avg_ns,
+        offset_min_ns,
+        offset_max_ns,
+        mean_path_delay_avg_ns,
     }
 }

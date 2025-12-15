@@ -8,9 +8,18 @@ pub mod services;
 pub mod stats;
 
 pub use domain::ntp::{ProbeResult, Target};
+#[cfg(feature = "ptp")]
+pub use domain::ptp::{
+    ClockIdentity, ClockQuality, PacketStats, PortIdentity, PtpDiagnostics, PtpProbeResult,
+    PtpTarget, TimeSource,
+};
 pub use error::RkikError;
 pub use services::compare::compare_many;
 pub use services::query::query_one;
+#[cfg(feature = "ptp")]
+pub use services::ptp_query::{
+    query_many as query_many_ptp, query_target as query_one_ptp, PtpQueryOptions,
+};
 
 #[cfg(feature = "sync")]
 pub mod sync;

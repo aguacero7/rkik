@@ -11,6 +11,11 @@ use rkik::{
     ProbeResult, RkikError, compare_many, fmt, query_one,
     stats::{Stats, compute_stats},
 };
+#[cfg(feature = "ptp")]
+use rkik::{
+    PtpProbeResult, PtpQueryOptions, query_many_ptp, query_one_ptp,
+    stats::{PtpStats, compute_ptp_stats},
+};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -101,6 +106,31 @@ struct Args {
     #[cfg(feature = "nts")]
     #[arg(long, default_value_t = 4460)]
     pub nts_port: u16,
+
+    /// Enable Precision Time Protocol mode
+    #[cfg(feature = "ptp")]
+    #[arg(long)]
+    pub ptp: bool,
+
+    /// PTP domain number
+    #[cfg(feature = "ptp")]
+    #[arg(long, default_value_t = 0, requires = "ptp")]
+    pub ptp_domain: u8,
+
+    /// PTP event port
+    #[cfg(feature = "ptp")]
+    #[arg(long, default_value_t = 319, requires = "ptp")]
+    pub ptp_event_port: u16,
+
+    /// PTP general port
+    #[cfg(feature = "ptp")]
+    #[arg(long, default_value_t = 320, requires = "ptp")]
+    pub ptp_general_port: u16,
+
+    /// Request hardware timestamping (simulated)
+    #[cfg(feature = "ptp")]
+    #[arg(long, requires = "ptp")]
+    pub ptp_hw_timestamp: bool,
 
     /// Enable Centreon/Nagios plugin output (produces machine-parseable output and proper exit codes)
     #[arg(long)]
@@ -204,6 +234,28 @@ async fn main() {
         let _ = io::stdout().flush();
         process::exit(2);
     }
+    #[cfg(all(feature = "ptp", feature = "nts"))]
+    if args.ptp && args.nts {
+        term.write_line(
+            &style("--ptp cannot be combined with --nts")
+                .red()
+                .to_string(),
+        )
+        .ok();
+        let _ = io::stdout().flush();
+        process::exit(2);
+    }
+    #[cfg(all(feature = "ptp", feature = "sync"))]
+    if args.ptp && args.sync {
+        term.write_line(
+            &style("--ptp cannot be combined with --sync")
+                .red()
+                .to_string(),
+        )
+        .ok();
+        let _ = io::stdout().flush();
+        process::exit(2);
+    }
     #[cfg(feature = "sync")]
     if args.infinite && args.sync {
         term.write_line(
@@ -239,6 +291,20 @@ async fn main() {
         .ok();
         let _ = io::stdout().flush();
         process::exit(2);
+    }
+
+    #[cfg(feature = "ptp")]
+    if args.ptp {
+        let opts = PtpQueryOptions::new(
+            args.ptp_domain,
+            args.ptp_event_port,
+            args.ptp_general_port,
+            args.ptp_hw_timestamp,
+            args.verbose,
+        );
+        let exit_code = run_ptp_mode(&args, &term, timeout, opts).await;
+        let _ = io::stdout().flush();
+        process::exit(exit_code);
     }
 
     let exit_code = match (&args.compare, &args.server, &args.target) {
@@ -578,6 +644,348 @@ async fn query_loop(target: &str, args: &Args, term: &Term, timeout: Duration) {
                 .ok();
                 let _ = io::stdout().flush();
                 process::exit(15);
+            }
+        }
+    }
+}
+
+#[cfg(feature = "ptp")]
+async fn run_ptp_mode(
+    args: &Args,
+    term: &Term,
+    timeout: Duration,
+    opts: PtpQueryOptions,
+) -> i32 {
+    match (&args.compare, &args.server, &args.target) {
+        (Some(list), _, _) => ptp_compare_loop(list, args, term, timeout, &opts).await,
+        (_, Some(server), _) => {
+            ptp_query_loop(server, args, term, timeout, &opts).await;
+            0
+        }
+        (_, None, Some(pos)) => {
+            ptp_query_loop(pos, args, term, timeout, &opts).await;
+            0
+        }
+        _ => {
+            term.write_line(
+                &style("Error: Provide either a server, a positional argument, or --compare")
+                    .red()
+                    .bold()
+                    .to_string(),
+            )
+            .ok();
+            1
+        }
+    }
+}
+
+#[cfg(feature = "ptp")]
+async fn ptp_query_loop(
+    target: &str,
+    args: &Args,
+    term: &Term,
+    timeout: Duration,
+    opts: &PtpQueryOptions,
+) {
+    let mut all = Vec::new();
+    let mut n = 0u32;
+    loop {
+        match query_one_ptp(target, args.ipv6, timeout, opts).await {
+            Ok(res) => {
+                if !args.plugin {
+                    if args.count > 1 || args.infinite {
+                        let format = args.format.clone();
+                        match format {
+                            OutputFormat::Text => {
+                                if args.verbose {
+                                    output_ptp(
+                                        term,
+                                        std::slice::from_ref(&res),
+                                        OutputFormat::Text,
+                                        args.pretty,
+                                        true,
+                                    );
+                                } else {
+                                    let line = fmt::ptp_text::render_short_probe(&res);
+                                    term.write_line(&line).ok();
+                                }
+                            }
+                            OutputFormat::JsonShort => {
+                                match fmt::ptp_json::probe_to_short_json(&res) {
+                                    Ok(s) => println!("{}", s),
+                                    Err(e) => eprintln!("error serializing: {}", e),
+                                }
+                            }
+                            _ => {
+                                output_ptp(
+                                    term,
+                                    std::slice::from_ref(&res),
+                                    format,
+                                    args.pretty,
+                                    args.verbose,
+                                );
+                            }
+                        }
+                    } else {
+                        output_ptp(
+                            term,
+                            std::slice::from_ref(&res),
+                            args.format.clone(),
+                            args.pretty,
+                            args.verbose,
+                        );
+                    }
+                }
+                all.push(res);
+            }
+            Err(e) => {
+                if args.plugin {
+                    emit_ptp_unknown(args.warning, args.critical);
+                    let _ = io::stdout().flush();
+                    process::exit(3);
+                }
+                let code = handle_error(term, e);
+                let _ = io::stdout().flush();
+                process::exit(code);
+            }
+        }
+        n += 1;
+        if !args.infinite && n >= args.count {
+            break;
+        }
+        if args.infinite {
+            let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
+            tokio::select! {
+                _ = sleep => {},
+                _ = signal::ctrl_c() => { break; }
+            }
+        } else {
+            tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
+        }
+    }
+
+    if all.len() > 1 && !args.plugin {
+        let stats = compute_ptp_stats(&all);
+        match args.format {
+            OutputFormat::Json => {
+                match fmt::ptp_json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
+                    Ok(s) => println!("{}", s),
+                    Err(e) => eprintln!("error serializing: {}", e),
+                }
+            }
+            _ => {
+                let line = fmt::ptp_text::render_stats(&all[0].target.name, &stats);
+                term.write_line(&line).ok();
+            }
+        }
+    }
+
+    if args.plugin {
+        if all.is_empty() {
+            emit_ptp_unknown(args.warning, args.critical);
+            let _ = io::stdout().flush();
+            process::exit(3);
+        }
+        let stats = compute_ptp_stats(&all);
+        let probe = &all[0];
+        let exit_code = emit_ptp_plugin(&stats, probe, args);
+        let _ = io::stdout().flush();
+        process::exit(exit_code);
+    }
+}
+
+#[cfg(feature = "ptp")]
+async fn ptp_compare_loop(
+    list: &[String],
+    args: &Args,
+    term: &Term,
+    timeout: Duration,
+    opts: &PtpQueryOptions,
+) -> i32 {
+    let mut all: HashMap<String, Vec<PtpProbeResult>> = HashMap::new();
+    let mut n = 0u32;
+    loop {
+        match query_many_ptp(list, args.ipv6, timeout, opts).await {
+            Ok(results) => {
+                if args.count > 1 || args.infinite {
+                    match args.format {
+                        OutputFormat::Text => {
+                            if args.verbose {
+                                output_ptp(
+                                    term,
+                                    &results,
+                                    OutputFormat::Text,
+                                    args.pretty,
+                                    true,
+                                );
+                            } else {
+                                let line = fmt::ptp_text::render_short_compare(&results);
+                                term.write_line(&line).ok();
+                            }
+                        }
+                        OutputFormat::JsonShort => {
+                            for r in &results {
+                                match fmt::ptp_json::probe_to_short_json(r) {
+                                    Ok(s) => println!("{}", s),
+                                    Err(e) => eprintln!("error serializing: {}", e),
+                                }
+                            }
+                        }
+                        _ => {
+                            output_ptp(
+                                term,
+                                &results,
+                                args.format.clone(),
+                                args.pretty,
+                                args.verbose,
+                            );
+                        }
+                    }
+                } else {
+                    output_ptp(
+                        term,
+                        &results,
+                        args.format.clone(),
+                        args.pretty,
+                        args.verbose,
+                    );
+                }
+                for res in results {
+                    all.entry(res.target.name.clone()).or_default().push(res);
+                }
+            }
+            Err(e) => {
+                let code = handle_error(term, e);
+                let _ = io::stdout().flush();
+                process::exit(code);
+            }
+        }
+        n += 1;
+        if !args.infinite && n >= args.count {
+            break;
+        }
+        if args.infinite {
+            let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
+            tokio::select! {
+                _ = sleep => {},
+                _ = signal::ctrl_c() => { break; }
+            }
+        } else {
+            tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
+        }
+    }
+
+    if all.values().map(|v| v.len()).sum::<usize>() > list.len() {
+        let mut stats_list: Vec<(String, PtpStats)> = all
+            .into_iter()
+            .map(|(name, vals)| (name, compute_ptp_stats(&vals)))
+            .collect();
+        stats_list.sort_by(|a, b| a.0.cmp(&b.0));
+        match args.format {
+            OutputFormat::Json => {
+                match fmt::ptp_json::stats_list_to_json(&stats_list, args.pretty) {
+                    Ok(s) => println!("{}", s),
+                    Err(e) => eprintln!("error serializing: {}", e),
+                }
+            }
+            _ => {
+                for (name, st) in &stats_list {
+                    let line = fmt::ptp_text::render_stats(name, st);
+                    term.write_line(&line).ok();
+                }
+            }
+        }
+    }
+    0
+}
+
+#[cfg(feature = "ptp")]
+fn emit_ptp_unknown(warning: Option<f64>, critical: Option<f64>) {
+    let warn_str = warning.map(|v| v.to_string()).unwrap_or_default();
+    let crit_str = critical.map(|v| v.to_string()).unwrap_or_default();
+    println!(
+        "RKIK UNKNOWN - PTP request failed | offset_ns=;{};{};0; delay_ns=;;;0;",
+        warn_str, crit_str
+    );
+}
+
+#[cfg(feature = "ptp")]
+fn emit_ptp_plugin(stats: &PtpStats, probe: &PtpProbeResult, args: &Args) -> i32 {
+    let warn_str = args.warning.map(|v| v.to_string()).unwrap_or_default();
+    let crit_str = args.critical.map(|v| v.to_string()).unwrap_or_default();
+    let offset = stats.offset_avg_ns;
+    let delay = stats.mean_path_delay_avg_ns;
+    let host = &probe.target.name;
+    let ip = &probe.target.ip;
+
+    let mut exit_code = 0i32;
+    if let Some(c) = args.critical {
+        if offset.abs() >= c {
+            exit_code = 2;
+        }
+    }
+    if exit_code == 0 {
+        if let Some(w) = args.warning {
+            if offset.abs() >= w {
+                exit_code = 1;
+            }
+        }
+    }
+
+    let state = match exit_code {
+        0 => "OK",
+        1 => "WARNING",
+        2 => "CRITICAL",
+        _ => "UNKNOWN",
+    };
+
+    println!(
+        "RKIK {state} - offset {offset:.0}ns delay {delay:.0}ns from {host} ({ip}) | offset_ns={offset:.0}ns;{warn};{crit};0; delay_ns={delay:.0}ns;;;0;",
+        state = state,
+        offset = offset,
+        delay = delay,
+        host = host,
+        ip = ip,
+        warn = warn_str,
+        crit = crit_str
+    );
+
+    exit_code
+}
+
+#[cfg(feature = "ptp")]
+fn output_ptp(
+    term: &Term,
+    results: &[PtpProbeResult],
+    fmt: OutputFormat,
+    pretty: bool,
+    verbose: bool,
+) {
+    match fmt {
+        OutputFormat::Text => {
+            if results.len() == 1 {
+                let s = fmt::ptp_text::render_probe(&results[0], verbose);
+                term.write_line(&s).ok();
+            } else {
+                let s = fmt::ptp_text::render_compare(results, verbose);
+                term.write_line(&s).ok();
+            }
+        }
+        OutputFormat::Json => match fmt::ptp_json::to_json(results, pretty, verbose) {
+            Ok(s) => println!("{}", s),
+            Err(e) => eprintln!("error serializing: {}", e),
+        },
+        OutputFormat::JsonShort => match fmt::ptp_json::to_short_json(results, pretty) {
+            Ok(s) => println!("{}", s),
+            Err(e) => eprintln!("error serializing: {}", e),
+        },
+        OutputFormat::Simple => {
+            if results.len() == 1 {
+                let s = fmt::ptp_text::render_simple_probe(&results[0]);
+                term.write_line(&s).ok();
+            } else {
+                let s = fmt::ptp_text::render_simple_compare(results);
+                term.write_line(&s).ok();
             }
         }
     }
