@@ -290,7 +290,6 @@ Commands:
   help                    Print help for the chosen command
 
 Each probe-oriented subcommand accepts the familiar options (`--count`, `--interval`, `--format`, `--plugin`, `--warning`, `--critical`, `--nts`, `--ipv6`, etc.). The legacy one-shot CLI still works: running `rkik <target>` without a subcommand automatically falls back to the historical parser (with a deprecation warning).
-```
 
 ### Configuration & presets
 - Defaults (timeout/format/ipv6) and presets live in `$RKIK_CONFIG_DIR/config.toml`. If the env var is unset, rkik falls back to the platform config directory (e.g. `~/.config/rkik`).
