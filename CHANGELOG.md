@@ -1,7 +1,8 @@
 # RKIK - Changelog
 
 ## [Unreleased]
-
+---
+## [2.1.0] - 2026-01-24
 ### Added
 - **Granular NTS validation error reporting** (rkik-nts v0.4.0)
   - New `NtsErrorKind` enum with 12 machine-readable error variants:
