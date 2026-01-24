@@ -5,7 +5,9 @@ use chrono::{DateTime, Local, Utc};
 #[cfg(feature = "nts")]
 use console::set_colors_enabled;
 #[cfg(feature = "nts")]
-use rkik::adapters::nts_client::{NtsError, NtsErrorKind, NtsKeData, NtsValidationOutcome};
+use rkik::adapters::nts_client::{
+    map_error_to_kind, NtsError, NtsErrorKind, NtsKeData, NtsValidationOutcome,
+};
 #[cfg(feature = "nts")]
 use rkik::fmt;
 #[cfg(feature = "nts")]
@@ -396,5 +398,147 @@ fn nts_json_omits_validation_in_non_verbose() {
         json.contains("\"authenticated\":false"),
         "JSON should still include authenticated flag: {}",
         json
+    );
+}
+
+// ============================================================================
+// map_error_to_kind Tests
+// ============================================================================
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_aead_failures() {
+    assert_eq!(
+        map_error_to_kind("AEAD failure while decrypting"),
+        NtsErrorKind::AeadFailure
+    );
+    assert_eq!(
+        map_error_to_kind("authentication tag verification failed"),
+        NtsErrorKind::AeadFailure
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_authenticator_errors() {
+    assert_eq!(
+        map_error_to_kind("missing authenticator in NTS extension"),
+        NtsErrorKind::MissingAuthenticator
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_unique_id_errors() {
+    assert_eq!(
+        map_error_to_kind("invalid unique identifier"),
+        NtsErrorKind::InvalidUniqueId
+    );
+    assert_eq!(
+        map_error_to_kind("UID mismatch in response"),
+        NtsErrorKind::InvalidUniqueId
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_origin_timestamp_errors() {
+    assert_eq!(
+        map_error_to_kind("origin timestamp validation failed"),
+        NtsErrorKind::InvalidOriginTimestamp
+    );
+    assert_eq!(
+        map_error_to_kind("possible replay attack detected"),
+        NtsErrorKind::InvalidOriginTimestamp
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_cookie_errors() {
+    assert_eq!(
+        map_error_to_kind("no cookies received from server"),
+        NtsErrorKind::MissingCookies
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_certificate_before_malformed() {
+    // "malformed certificate" should map to CertificateInvalid, not MalformedExtensions
+    assert_eq!(
+        map_error_to_kind("malformed certificate in chain"),
+        NtsErrorKind::CertificateInvalid
+    );
+    assert_eq!(
+        map_error_to_kind("certificate extensions invalid"),
+        NtsErrorKind::CertificateInvalid
+    );
+    assert_eq!(
+        map_error_to_kind("cert verification failed"),
+        NtsErrorKind::CertificateInvalid
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_malformed_extensions() {
+    // Pure extension errors without certificate context
+    assert_eq!(
+        map_error_to_kind("NTS extension field malformed"),
+        NtsErrorKind::MalformedExtensions
+    );
+    assert_eq!(
+        map_error_to_kind("missing required extension"),
+        NtsErrorKind::MalformedExtensions
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_handshake_errors() {
+    assert_eq!(
+        map_error_to_kind("NTS-KE handshake failed"),
+        NtsErrorKind::KeHandshakeFailed
+    );
+    assert_eq!(
+        map_error_to_kind("TLS negotiation error"),
+        NtsErrorKind::KeHandshakeFailed
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_timeout_before_network() {
+    // Timeout should be preferred over network for timeout messages
+    assert_eq!(
+        map_error_to_kind("connection timed out"),
+        NtsErrorKind::Timeout
+    );
+    assert_eq!(
+        map_error_to_kind("network timeout waiting for response"),
+        NtsErrorKind::Timeout
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_classifies_network_errors() {
+    assert_eq!(
+        map_error_to_kind("network unreachable"),
+        NtsErrorKind::Network
+    );
+    assert_eq!(
+        map_error_to_kind("connection refused"),
+        NtsErrorKind::Network
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn map_error_to_kind_returns_unknown_for_unrecognized() {
+    assert_eq!(
+        map_error_to_kind("some completely unrelated error"),
+        NtsErrorKind::Unknown
     );
 }

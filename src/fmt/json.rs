@@ -9,36 +9,8 @@ use crate::stats::Stats;
 #[cfg(all(feature = "json", feature = "nts"))]
 use crate::adapters::nts_client::{NtsKeData, NtsValidationOutcome};
 
-/// JSON structure for NTS error details
-#[cfg(all(feature = "json", feature = "nts"))]
-#[derive(Serialize)]
-pub struct NtsErrorJson {
-    pub kind: String,
-    pub message: String,
-}
-
-/// JSON structure for NTS validation output
-#[cfg(all(feature = "json", feature = "nts"))]
-#[derive(Serialize)]
-pub struct NtsJsonOutput {
-    pub authenticated: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<NtsErrorJson>,
-}
-
-#[cfg(all(feature = "json", feature = "nts"))]
-impl NtsJsonOutput {
-    /// Create NTS JSON output from validation outcome
-    pub fn from_validation(validation: &NtsValidationOutcome) -> Self {
-        Self {
-            authenticated: validation.authenticated,
-            error: validation.error.as_ref().map(|e| NtsErrorJson {
-                kind: e.kind.as_str().to_string(),
-                message: e.message.clone(),
-            }),
-        }
-    }
-}
+// NtsValidationOutcome, NtsError, and NtsErrorKind already derive Serialize,
+// so we can serialize them directly without wrapper types.
 
 #[cfg(feature = "json")]
 #[derive(Serialize)]
@@ -62,7 +34,7 @@ pub struct JsonProbe {
     pub nts_ke_data: Option<NtsKeData>,
     #[cfg(feature = "nts")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub nts: Option<NtsJsonOutput>,
+    pub nts: Option<NtsValidationOutcome>,
 }
 
 #[cfg(feature = "json")]
@@ -83,9 +55,7 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
             .map(|r| {
                 #[cfg(feature = "nts")]
                 let nts_output = if verbose {
-                    r.nts_validation
-                        .as_ref()
-                        .map(NtsJsonOutput::from_validation)
+                    r.nts_validation.clone()
                 } else {
                     None
                 };
