@@ -15,6 +15,16 @@ pub struct Stats {
 }
 
 pub fn compute_stats(results: &[ProbeResult]) -> Stats {
+    if results.is_empty() {
+        return Stats {
+            count: 0,
+            offset_avg: 0.0,
+            offset_min: 0.0,
+            offset_max: 0.0,
+            rtt_avg: 0.0,
+        };
+    }
+
     let count = results.len();
     let offset_avg = results.iter().map(|r| r.offset_ms).sum::<f64>() / count as f64;
     let offset_min = results
@@ -80,5 +90,23 @@ pub fn compute_ptp_stats(results: &[PtpProbeResult]) -> PtpStats {
         offset_min_ns,
         offset_max_ns,
         mean_path_delay_avg_ns,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compute_stats_empty_results() {
+        let results: Vec<ProbeResult> = Vec::new();
+
+        let stats = compute_stats(&results);
+
+        assert_eq!(stats.count, 0);
+        assert_eq!(stats.offset_avg, 0.0);
+        assert_eq!(stats.offset_min, 0.0);
+        assert_eq!(stats.offset_max, 0.0);
+        assert_eq!(stats.rtt_avg, 0.0);
     }
 }
