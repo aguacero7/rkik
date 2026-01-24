@@ -215,7 +215,7 @@ pub struct CertificateInfo {
 /// general ones to avoid misclassification (e.g., "malformed certificate"
 /// should map to CertificateInvalid, not MalformedExtensions).
 #[cfg(feature = "nts")]
-pub(crate) fn map_error_to_kind(error_msg: &str) -> NtsErrorKind {
+pub fn map_error_to_kind(error_msg: &str) -> NtsErrorKind {
     let msg_lower = error_msg.to_lowercase();
 
     // Security-critical errors first (most specific patterns)
