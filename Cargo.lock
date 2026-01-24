@@ -1198,9 +1198,9 @@ dependencies = [
 
 [[package]]
 name = "rkik-nts"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac9ab73e9189f045df6bc02e59178465efdbba6a4e2c74c11dee02cdc81f9dff"
+checksum = "61f4a51ba098709f2bcbf402f4e2fe778e60f933eb7407fa210503ba93d1d807"
 dependencies = [
  "chrono",
  "ntp-proto",

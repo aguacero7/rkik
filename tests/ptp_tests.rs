@@ -1,6 +1,6 @@
 #![cfg(all(feature = "ptp", target_os = "linux"))]
 
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use console::set_colors_enabled;
 use rkik::{
     ClockIdentity, ClockQuality, PacketStats, PortIdentity, PtpDiagnostics, PtpProbeResult,
@@ -9,8 +9,7 @@ use rkik::{
 use std::net::IpAddr;
 
 fn sample_probe(offset_ns: i64, delay_ns: i64, include_diag: bool) -> PtpProbeResult {
-    let naive = NaiveDateTime::from_timestamp_opt(1_700_000_000, 123_000_000).unwrap();
-    let utc: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+    let utc: DateTime<Utc> = DateTime::from_timestamp(1_700_000_000, 123_000_000).unwrap();
     let local: DateTime<Local> = DateTime::from(utc);
     let ip: IpAddr = "127.0.0.1".parse().unwrap();
 

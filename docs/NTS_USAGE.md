@@ -192,11 +192,62 @@ When querying a regular NTP server (without `--nts`):
 - **Verbose mode**: `Authenticated: No`
 - **JSON mode**: `"authenticated": false`
 
+## NTS Error Kinds
+
+Starting with rkik-nts v0.4.0, RKIK provides detailed NTS validation error reporting with machine-readable error kinds. These help diagnose NTS failures more precisely.
+
+### Security-Critical Errors (Exit Code 2 in Plugin Mode)
+
+| Error Kind | Description |
+|------------|-------------|
+| `aead_failure` | AEAD authentication failed on the NTP response |
+| `missing_authenticator` | NTP response is missing the authenticator extension |
+| `unauthenticated_response` | Server returned unauthenticated response after NTS-KE |
+| `invalid_unique_id` | Invalid or mismatched Unique Identifier in response |
+| `invalid_origin_timestamp` | Origin timestamp check failed (anti-replay protection) |
+
+### Configuration/Connection Errors (Exit Code 3 in Plugin Mode)
+
+| Error Kind | Description |
+|------------|-------------|
+| `ke_handshake_failed` | NTS-KE handshake failed (TLS or protocol error) |
+| `certificate_invalid` | TLS certificate validation failed |
+| `missing_cookies` | No cookies received from the NTS server |
+| `malformed_extensions` | NTS extensions in response are malformed |
+| `timeout` | Connection or operation timed out |
+| `network` | Network-level error (connection refused, etc.) |
+
+### JSON Output with Errors
+
+In verbose mode, NTS errors appear in the JSON output:
+
+```json
+{
+  "name": "time.example.com",
+  "authenticated": false,
+  "nts": {
+    "authenticated": false,
+    "error": {
+      "kind": "aead_failure",
+      "message": "NTS AEAD authentication failed"
+    }
+  }
+}
+```
+
+### Text Output with Errors
+
+When NTS validation fails, you'll see:
+
+- **Text mode**: `[NTS Failed] (aead_failure)` badge
+- **Compare mode**: `[NTS FAILED]` badge
+- **Verbose mode**: Detailed error section with kind and message
+
 ## Troubleshooting
 
 ### Connection Errors
 
-If you see `NTS-KE failed: Connection reset by peer`:
+If you see `NTS-KE failed: Connection reset by peer` or `[ke_handshake_failed]`:
 
 - Check that the server supports NTS
 - Verify the NTS-KE port (usually 4460, not 123)
@@ -204,11 +255,35 @@ If you see `NTS-KE failed: Connection reset by peer`:
 
 ### Timeout Errors
 
-If you see `NTS-KE failed: connection timed out`:
+If you see `NTS-KE failed: connection timed out` or `[timeout]`:
 
 - Increase the timeout: `--timeout 15`
 - Check network connectivity
 - Some servers may be temporarily unavailable
+
+### Certificate Errors
+
+If you see `[certificate_invalid]`:
+
+- The server's TLS certificate may be expired or self-signed
+- Your system may be missing required root CA certificates
+- Check if the server hostname matches the certificate
+
+### AEAD Failures
+
+If you see `[aead_failure]` or `[missing_authenticator]`:
+
+- These indicate potential security issues (tampering or MITM)
+- Try a different NTS server
+- Check for network proxies that might interfere with NTS
+
+### Unauthenticated Response
+
+If you see `[unauthenticated_response]`:
+
+- The server completed NTS-KE but sent an unauthenticated NTP response
+- This could indicate server misconfiguration or an attack
+- RKIK rejects such responses for security
 
 ### Mixed NTS/NTP Comparison
 
@@ -233,7 +308,7 @@ You cannot mix NTS and non-NTS queries in the same compare operation. Either use
 
 RKIK's NTS support is built on:
 
-- **rkik-nts v0.3.0**: High-level NTS client library
+- **rkik-nts v0.4.0**: High-level NTS client library with granular error reporting
 - **ntpd-rs**: Battle-tested NTS implementation from Pendulum Project
 - **rustls**: Modern TLS library for Rust
 
