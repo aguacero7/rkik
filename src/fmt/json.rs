@@ -7,7 +7,38 @@ use crate::error::RkikError;
 use crate::stats::Stats;
 
 #[cfg(all(feature = "json", feature = "nts"))]
-use crate::adapters::nts_client::NtsKeData;
+use crate::adapters::nts_client::{NtsKeData, NtsValidationOutcome};
+
+/// JSON structure for NTS error details
+#[cfg(all(feature = "json", feature = "nts"))]
+#[derive(Serialize)]
+pub struct NtsErrorJson {
+    pub kind: String,
+    pub message: String,
+}
+
+/// JSON structure for NTS validation output
+#[cfg(all(feature = "json", feature = "nts"))]
+#[derive(Serialize)]
+pub struct NtsJsonOutput {
+    pub authenticated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<NtsErrorJson>,
+}
+
+#[cfg(all(feature = "json", feature = "nts"))]
+impl NtsJsonOutput {
+    /// Create NTS JSON output from validation outcome
+    pub fn from_validation(validation: &NtsValidationOutcome) -> Self {
+        Self {
+            authenticated: validation.authenticated,
+            error: validation.error.as_ref().map(|e| NtsErrorJson {
+                kind: e.kind.as_str().to_string(),
+                message: e.message.clone(),
+            }),
+        }
+    }
+}
 
 #[cfg(feature = "json")]
 #[derive(Serialize)]
@@ -29,6 +60,9 @@ pub struct JsonProbe {
     #[cfg(feature = "nts")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nts_ke_data: Option<NtsKeData>,
+    #[cfg(feature = "nts")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nts: Option<NtsJsonOutput>,
 }
 
 #[cfg(feature = "json")]
@@ -46,24 +80,37 @@ pub fn to_json(results: &[ProbeResult], pretty: bool, verbose: bool) -> Result<S
     {
         let probes = results
             .iter()
-            .map(|r| JsonProbe {
-                name: r.target.name.clone(),
-                ip: r.target.ip.to_string(),
-                port: r.target.port,
-                offset_ms: r.offset_ms,
-                rtt_ms: r.rtt_ms,
-                utc: r.utc.to_rfc3339(),
-                local: r.local.format("%Y-%m-%d %H:%M:%S").to_string(),
-                stratum: if verbose { Some(r.stratum) } else { None },
-                ref_id: if verbose {
-                    Some(r.ref_id.clone())
+            .map(|r| {
+                #[cfg(feature = "nts")]
+                let nts_output = if verbose {
+                    r.nts_validation
+                        .as_ref()
+                        .map(NtsJsonOutput::from_validation)
                 } else {
                     None
-                },
-                timestamp: if verbose { Some(r.timestamp) } else { None },
-                authenticated: r.authenticated,
-                #[cfg(feature = "nts")]
-                nts_ke_data: if verbose { r.nts_ke_data.clone() } else { None },
+                };
+
+                JsonProbe {
+                    name: r.target.name.clone(),
+                    ip: r.target.ip.to_string(),
+                    port: r.target.port,
+                    offset_ms: r.offset_ms,
+                    rtt_ms: r.rtt_ms,
+                    utc: r.utc.to_rfc3339(),
+                    local: r.local.format("%Y-%m-%d %H:%M:%S").to_string(),
+                    stratum: if verbose { Some(r.stratum) } else { None },
+                    ref_id: if verbose {
+                        Some(r.ref_id.clone())
+                    } else {
+                        None
+                    },
+                    timestamp: if verbose { Some(r.timestamp) } else { None },
+                    authenticated: r.authenticated,
+                    #[cfg(feature = "nts")]
+                    nts_ke_data: if verbose { r.nts_ke_data.clone() } else { None },
+                    #[cfg(feature = "nts")]
+                    nts: nts_output,
+                }
             })
             .collect();
 
@@ -291,6 +338,8 @@ mod tests {
             authenticated: false,
             #[cfg(feature = "nts")]
             nts_ke_data: None,
+            #[cfg(feature = "nts")]
+            nts_validation: None,
         }
     }
 

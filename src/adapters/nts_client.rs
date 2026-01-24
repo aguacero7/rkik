@@ -11,6 +11,138 @@ use crate::error::RkikError;
 #[cfg(feature = "json")]
 use serde::Serialize;
 
+/// Machine-readable NTS validation error kinds.
+/// Stable taxonomy for programmatic consumption.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+#[serde(rename_all = "snake_case")]
+pub enum NtsErrorKind {
+    /// NTS-KE handshake failed (TLS or protocol error)
+    KeHandshakeFailed,
+    /// TLS certificate validation failed
+    CertificateInvalid,
+    /// No cookies received from server
+    MissingCookies,
+    /// AEAD authentication failed on response
+    AeadFailure,
+    /// Missing authenticator extension in response
+    MissingAuthenticator,
+    /// Invalid or mismatched Unique Identifier
+    InvalidUniqueId,
+    /// Invalid origin timestamp (anti-replay)
+    InvalidOriginTimestamp,
+    /// Required NTS extensions missing or malformed
+    MalformedExtensions,
+    /// Server returned unauthenticated response after NTS-KE
+    UnauthenticatedResponse,
+    /// Connection timeout during NTS operations
+    Timeout,
+    /// Network-level error
+    Network,
+    /// Unknown or unclassified error
+    Unknown,
+}
+
+impl NtsErrorKind {
+    /// Returns the canonical string representation for JSON output
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NtsErrorKind::KeHandshakeFailed => "ke_handshake_failed",
+            NtsErrorKind::CertificateInvalid => "certificate_invalid",
+            NtsErrorKind::MissingCookies => "missing_cookies",
+            NtsErrorKind::AeadFailure => "aead_failure",
+            NtsErrorKind::MissingAuthenticator => "missing_authenticator",
+            NtsErrorKind::InvalidUniqueId => "invalid_unique_id",
+            NtsErrorKind::InvalidOriginTimestamp => "invalid_origin_timestamp",
+            NtsErrorKind::MalformedExtensions => "malformed_extensions",
+            NtsErrorKind::UnauthenticatedResponse => "unauthenticated_response",
+            NtsErrorKind::Timeout => "timeout",
+            NtsErrorKind::Network => "network",
+            NtsErrorKind::Unknown => "unknown",
+        }
+    }
+
+    /// Returns the plugin exit code for this error kind
+    pub fn plugin_exit_code(&self) -> i32 {
+        match self {
+            // Security-critical failures: CRITICAL (2)
+            NtsErrorKind::AeadFailure
+            | NtsErrorKind::MissingAuthenticator
+            | NtsErrorKind::UnauthenticatedResponse
+            | NtsErrorKind::InvalidUniqueId
+            | NtsErrorKind::InvalidOriginTimestamp => 2,
+
+            // Configuration/handshake issues: UNKNOWN (3)
+            NtsErrorKind::KeHandshakeFailed
+            | NtsErrorKind::CertificateInvalid
+            | NtsErrorKind::MissingCookies
+            | NtsErrorKind::MalformedExtensions => 3,
+
+            // Transient issues: UNKNOWN (3)
+            NtsErrorKind::Timeout | NtsErrorKind::Network | NtsErrorKind::Unknown => 3,
+        }
+    }
+}
+
+impl std::fmt::Display for NtsErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+/// Structured NTS error with machine-readable kind and human-readable message.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+pub struct NtsError {
+    /// Machine-readable error classification
+    pub kind: NtsErrorKind,
+    /// Human-readable error message
+    pub message: String,
+}
+
+impl NtsError {
+    pub fn new(kind: NtsErrorKind, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for NtsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+/// NTS validation outcome for successful probes.
+/// Captures whether NTS validation succeeded or failed after NTS-KE.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "json", derive(Serialize))]
+pub struct NtsValidationOutcome {
+    /// Whether the response was cryptographically authenticated
+    pub authenticated: bool,
+    /// If authentication failed, the error details
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<NtsError>,
+}
+
+impl NtsValidationOutcome {
+    pub fn success() -> Self {
+        Self {
+            authenticated: true,
+            error: None,
+        }
+    }
+
+    pub fn failure(error: NtsError) -> Self {
+        Self {
+            authenticated: false,
+            error: Some(error),
+        }
+    }
+}
+
 /// Result of an NTS time query containing all relevant timing and authentication data.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "json", derive(Serialize))]
@@ -21,12 +153,14 @@ pub struct NtsTimeResult {
     pub offset_ms: f64,
     /// Round-trip time in milliseconds
     pub rtt_ms: f64,
-    /// Whether the response was cryptographically authenticated
+    /// Whether the response was cryptographically authenticated (for backwards compatibility)
     pub authenticated: bool,
     /// Server hostname
     pub server: String,
     /// NTS-KE diagnostic data
     pub nts_ke_data: Option<NtsKeData>,
+    /// Detailed NTS validation outcome
+    pub nts_validation: NtsValidationOutcome,
 }
 
 /// NTS-KE (Key Exchange) diagnostic data
@@ -74,6 +208,43 @@ pub struct CertificateInfo {
     pub is_self_signed: bool,
 }
 
+/// Map an error message string to an NtsErrorKind.
+/// This function analyzes error messages to categorize them appropriately.
+#[cfg(feature = "nts")]
+fn map_error_to_kind(error_msg: &str) -> NtsErrorKind {
+    let msg_lower = error_msg.to_lowercase();
+
+    if msg_lower.contains("aead") || msg_lower.contains("authentication tag") {
+        NtsErrorKind::AeadFailure
+    } else if msg_lower.contains("authenticator") {
+        NtsErrorKind::MissingAuthenticator
+    } else if msg_lower.contains("cookie") {
+        NtsErrorKind::MissingCookies
+    } else if msg_lower.contains("unique identifier") || msg_lower.contains("uid") {
+        NtsErrorKind::InvalidUniqueId
+    } else if msg_lower.contains("origin timestamp") || msg_lower.contains("replay") {
+        NtsErrorKind::InvalidOriginTimestamp
+    } else if msg_lower.contains("extension") || msg_lower.contains("malformed") {
+        NtsErrorKind::MalformedExtensions
+    } else if msg_lower.contains("certificate") || msg_lower.contains("cert") {
+        NtsErrorKind::CertificateInvalid
+    } else if msg_lower.contains("handshake")
+        || msg_lower.contains("nts-ke")
+        || msg_lower.contains("tls")
+    {
+        NtsErrorKind::KeHandshakeFailed
+    } else if msg_lower.contains("timeout") || msg_lower.contains("timed out") {
+        NtsErrorKind::Timeout
+    } else if msg_lower.contains("network")
+        || msg_lower.contains("connection")
+        || msg_lower.contains("refused")
+    {
+        NtsErrorKind::Network
+    } else {
+        NtsErrorKind::Unknown
+    }
+}
+
 /// Query an NTS-enabled server and return the authenticated time result.
 ///
 /// # Arguments
@@ -118,16 +289,26 @@ pub async fn query_nts(
     let mut client = NtsClient::new(config);
 
     // Perform NTS-KE handshake
-    client
-        .connect()
-        .await
-        .map_err(|e| RkikError::Nts(format!("NTS-KE failed: {}", e)))?;
+    client.connect().await.map_err(|e| {
+        let msg = e.to_string();
+        let kind = map_error_to_kind(&msg);
+        RkikError::Nts(format!("NTS-KE failed: {} [{}]", msg, kind))
+    })?;
 
     // Get authenticated time
-    let time_snapshot = client
-        .get_time()
-        .await
-        .map_err(|e| RkikError::Nts(format!("NTS time query failed: {}", e)))?;
+    let time_snapshot = client.get_time().await.map_err(|e| {
+        let msg = e.to_string();
+        let kind = map_error_to_kind(&msg);
+        RkikError::Nts(format!("NTS time query failed: {} [{}]", msg, kind))
+    })?;
+
+    // Check if response is authenticated - reject unauthenticated responses after NTS-KE
+    if !time_snapshot.authenticated {
+        return Err(RkikError::Nts(format!(
+            "NTS validation failed: server returned unauthenticated response after NTS-KE [{}]",
+            NtsErrorKind::UnauthenticatedResponse
+        )));
+    }
 
     // Capture NTS-KE diagnostic data from the client
     let nts_ke_data = client.nts_ke_info().map(|ke_result| {
@@ -146,9 +327,9 @@ pub async fn query_nts(
         });
 
         NtsKeData {
-            ke_duration_ms: ke_result.ke_duration().as_secs_f64() * 1000.0,
-            cookie_count: ke_result.cookie_count(),
-            cookie_sizes: ke_result.cookie_sizes(),
+            ke_duration_ms: ke_result.ke_duration.as_secs_f64() * 1000.0,
+            cookie_count: ke_result.initial_cookie_count,
+            cookie_sizes: vec![], // Cookie sizes no longer exposed in rkik-nts 0.4.0
             aead_algorithm: ke_result.aead_algorithm.clone(),
             ntp_server: ke_result.ntp_server.to_string(),
             certificate,
@@ -170,9 +351,10 @@ pub async fn query_nts(
         network_time,
         offset_ms,
         rtt_ms,
-        authenticated: time_snapshot.authenticated,
+        authenticated: true,
         server: time_snapshot.server.clone(),
         nts_ke_data,
+        nts_validation: NtsValidationOutcome::success(),
     })
 }
 

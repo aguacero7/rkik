@@ -1,11 +1,11 @@
 //! Integration tests for NTS (Network Time Security) functionality
 
 #[cfg(feature = "nts")]
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 #[cfg(feature = "nts")]
 use console::set_colors_enabled;
 #[cfg(feature = "nts")]
-use rkik::adapters::nts_client::NtsKeData;
+use rkik::adapters::nts_client::{NtsError, NtsErrorKind, NtsKeData, NtsValidationOutcome};
 #[cfg(feature = "nts")]
 use rkik::fmt;
 #[cfg(feature = "nts")]
@@ -15,8 +15,7 @@ use std::net::IpAddr;
 
 #[cfg(feature = "nts")]
 fn sample_nts_probe() -> ProbeResult {
-    let naive = NaiveDateTime::from_timestamp_opt(1_700_000_000, 0).unwrap();
-    let utc: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+    let utc: DateTime<Utc> = DateTime::from_timestamp(1_700_000_000, 0).unwrap();
     let local: DateTime<Local> = DateTime::from(utc);
     let ip: IpAddr = "127.0.0.1".parse().unwrap();
 
@@ -37,11 +36,41 @@ fn sample_nts_probe() -> ProbeResult {
         nts_ke_data: Some(NtsKeData {
             ke_duration_ms: 12.5,
             cookie_count: 2,
-            cookie_sizes: vec![48, 64],
+            cookie_sizes: vec![], // Cookie sizes no longer exposed in rkik-nts 0.4.0
             aead_algorithm: "AEAD_AES_SIV_CMAC_256".into(),
             ntp_server: "nts.test".into(),
             certificate: None,
         }),
+        nts_validation: Some(NtsValidationOutcome::success()),
+    }
+}
+
+/// Create a sample NTS probe result with an AEAD failure for testing
+#[cfg(feature = "nts")]
+fn sample_nts_probe_with_error() -> ProbeResult {
+    let utc: DateTime<Utc> = DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+    let local: DateTime<Local> = DateTime::from(utc);
+    let ip: IpAddr = "127.0.0.1".parse().unwrap();
+
+    ProbeResult {
+        target: Target {
+            name: "nts.test".into(),
+            ip,
+            port: 123,
+        },
+        offset_ms: 0.0,
+        rtt_ms: 0.0,
+        stratum: 0,
+        ref_id: "".into(),
+        utc,
+        local,
+        timestamp: utc.timestamp(),
+        authenticated: false,
+        nts_ke_data: None,
+        nts_validation: Some(NtsValidationOutcome::failure(NtsError::new(
+            NtsErrorKind::AeadFailure,
+            "NTS AEAD authentication failed",
+        ))),
     }
 }
 
@@ -190,4 +219,182 @@ async fn test_nts_disabled_on_regular_server() {
             "Regular NTP query should not be authenticated"
         );
     }
+}
+
+// ============================================================================
+// NTS Validation Error Tests
+// ============================================================================
+
+#[cfg(feature = "nts")]
+#[test]
+fn nts_error_kind_as_str_returns_correct_values() {
+    assert_eq!(NtsErrorKind::AeadFailure.as_str(), "aead_failure");
+    assert_eq!(
+        NtsErrorKind::MissingAuthenticator.as_str(),
+        "missing_authenticator"
+    );
+    assert_eq!(NtsErrorKind::InvalidUniqueId.as_str(), "invalid_unique_id");
+    assert_eq!(
+        NtsErrorKind::UnauthenticatedResponse.as_str(),
+        "unauthenticated_response"
+    );
+    assert_eq!(
+        NtsErrorKind::KeHandshakeFailed.as_str(),
+        "ke_handshake_failed"
+    );
+    assert_eq!(
+        NtsErrorKind::CertificateInvalid.as_str(),
+        "certificate_invalid"
+    );
+    assert_eq!(NtsErrorKind::MissingCookies.as_str(), "missing_cookies");
+    assert_eq!(
+        NtsErrorKind::MalformedExtensions.as_str(),
+        "malformed_extensions"
+    );
+    assert_eq!(
+        NtsErrorKind::InvalidOriginTimestamp.as_str(),
+        "invalid_origin_timestamp"
+    );
+    assert_eq!(NtsErrorKind::Timeout.as_str(), "timeout");
+    assert_eq!(NtsErrorKind::Network.as_str(), "network");
+    assert_eq!(NtsErrorKind::Unknown.as_str(), "unknown");
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn nts_error_kind_plugin_exit_codes_are_correct() {
+    // Security-critical failures should return CRITICAL (2)
+    assert_eq!(NtsErrorKind::AeadFailure.plugin_exit_code(), 2);
+    assert_eq!(NtsErrorKind::MissingAuthenticator.plugin_exit_code(), 2);
+    assert_eq!(NtsErrorKind::UnauthenticatedResponse.plugin_exit_code(), 2);
+    assert_eq!(NtsErrorKind::InvalidUniqueId.plugin_exit_code(), 2);
+    assert_eq!(NtsErrorKind::InvalidOriginTimestamp.plugin_exit_code(), 2);
+
+    // Configuration/connection issues should return UNKNOWN (3)
+    assert_eq!(NtsErrorKind::KeHandshakeFailed.plugin_exit_code(), 3);
+    assert_eq!(NtsErrorKind::CertificateInvalid.plugin_exit_code(), 3);
+    assert_eq!(NtsErrorKind::MissingCookies.plugin_exit_code(), 3);
+    assert_eq!(NtsErrorKind::MalformedExtensions.plugin_exit_code(), 3);
+    assert_eq!(NtsErrorKind::Timeout.plugin_exit_code(), 3);
+    assert_eq!(NtsErrorKind::Network.plugin_exit_code(), 3);
+    assert_eq!(NtsErrorKind::Unknown.plugin_exit_code(), 3);
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn nts_validation_outcome_success_is_authenticated() {
+    let outcome = NtsValidationOutcome::success();
+    assert!(outcome.authenticated);
+    assert!(outcome.error.is_none());
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn nts_validation_outcome_failure_has_error() {
+    let error = NtsError::new(NtsErrorKind::AeadFailure, "AEAD auth failed");
+    let outcome = NtsValidationOutcome::failure(error);
+    assert!(!outcome.authenticated);
+    assert!(outcome.error.is_some());
+    assert_eq!(
+        outcome.error.as_ref().unwrap().kind,
+        NtsErrorKind::AeadFailure
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn nts_text_render_shows_failure_badge_on_error() {
+    set_colors_enabled(false);
+    let probe = sample_nts_probe_with_error();
+    let rendered = fmt::text::render_probe(&probe, false);
+    assert!(
+        rendered.contains("[NTS Failed]"),
+        "expected failure badge in probe output: {}",
+        rendered
+    );
+    assert!(
+        rendered.contains("aead_failure"),
+        "expected error kind in probe output: {}",
+        rendered
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn nts_text_render_shows_error_details_in_verbose() {
+    set_colors_enabled(false);
+    let probe = sample_nts_probe_with_error();
+    let rendered = fmt::text::render_probe(&probe, true);
+    assert!(
+        rendered.contains("=== NTS Validation Error ==="),
+        "expected error section in verbose output: {}",
+        rendered
+    );
+    assert!(
+        rendered.contains("Error Kind:"),
+        "expected error kind label in verbose output: {}",
+        rendered
+    );
+    assert!(
+        rendered.contains("NTS AEAD authentication failed"),
+        "expected error message in verbose output: {}",
+        rendered
+    );
+}
+
+#[cfg(feature = "nts")]
+#[test]
+fn nts_compare_render_shows_failure_badge() {
+    set_colors_enabled(false);
+    let probe = sample_nts_probe_with_error();
+    let rendered = fmt::text::render_compare(std::slice::from_ref(&probe), false);
+    assert!(
+        rendered.contains("[NTS FAILED]"),
+        "expected NTS FAILED badge in compare output: {}",
+        rendered
+    );
+}
+
+#[cfg(all(feature = "nts", feature = "json"))]
+#[test]
+fn nts_json_includes_validation_error_in_verbose() {
+    let probe = sample_nts_probe_with_error();
+    let json = fmt::json::to_json(std::slice::from_ref(&probe), false, true).unwrap();
+    assert!(
+        json.contains("\"nts\""),
+        "verbose JSON should include nts field: {}",
+        json
+    );
+    assert!(
+        json.contains("\"authenticated\":false"),
+        "verbose JSON should show authenticated false: {}",
+        json
+    );
+    assert!(
+        json.contains("\"kind\":\"aead_failure\""),
+        "verbose JSON should include error kind: {}",
+        json
+    );
+    assert!(
+        json.contains("\"message\":\"NTS AEAD authentication failed\""),
+        "verbose JSON should include error message: {}",
+        json
+    );
+}
+
+#[cfg(all(feature = "nts", feature = "json"))]
+#[test]
+fn nts_json_omits_validation_in_non_verbose() {
+    let probe = sample_nts_probe_with_error();
+    let json = fmt::json::to_json(std::slice::from_ref(&probe), false, false).unwrap();
+    assert!(
+        !json.contains("\"nts\""),
+        "non-verbose JSON should omit nts field: {}",
+        json
+    );
+    assert!(
+        json.contains("\"authenticated\":false"),
+        "JSON should still include authenticated flag: {}",
+        json
+    );
 }

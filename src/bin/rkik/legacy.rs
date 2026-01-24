@@ -1085,9 +1085,23 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
 fn handle_error(term: &Term, err: RkikError) -> i32 {
     term.write_line(&style(format!("Error: {}", err)).red().to_string())
         .ok();
-    match err {
+    match &err {
         RkikError::Dns(_) => 2,
-        RkikError::Network(ref s) if s == "timeout" => 3,
+        RkikError::Network(s) if s == "timeout" => 3,
+        RkikError::Nts(msg) => {
+            // Extract NTS error kind from message for exit code
+            // Security-critical failures return CRITICAL (2), others return UNKNOWN (3)
+            if msg.contains("[aead_failure]")
+                || msg.contains("[missing_authenticator]")
+                || msg.contains("[unauthenticated_response]")
+                || msg.contains("[invalid_unique_id]")
+                || msg.contains("[invalid_origin_timestamp]")
+            {
+                2 // CRITICAL - security failures
+            } else {
+                3 // UNKNOWN - configuration/connection issues
+            }
+        }
         _ => 1,
     }
 }

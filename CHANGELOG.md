@@ -1,6 +1,46 @@
 # RKIK - Changelog
 
-## [Unreleased
+## [Unreleased]
+
+### Added
+- **Granular NTS validation error reporting** (rkik-nts v0.4.0)
+  - New `NtsErrorKind` enum with 12 machine-readable error variants:
+    - Security-critical: `aead_failure`, `missing_authenticator`, `unauthenticated_response`, `invalid_unique_id`, `invalid_origin_timestamp`
+    - Configuration/connection: `ke_handshake_failed`, `certificate_invalid`, `missing_cookies`, `malformed_extensions`, `timeout`, `network`, `unknown`
+  - Structured `NtsValidationOutcome` for detailed validation results
+  - JSON output includes error details in verbose mode:
+    ```json
+    {
+      "nts": {
+        "authenticated": false,
+        "error": {
+          "kind": "aead_failure",
+          "message": "NTS AEAD authentication failed"
+        }
+      }
+    }
+    ```
+  - Text output shows `[NTS Failed] (error_kind)` badge on validation failures
+  - Verbose mode displays detailed error section with kind and message
+  - Compare mode shows `[NTS FAILED]` badge for failed validations
+
+### Changed
+- **Dependency update**: `rkik-nts` upgraded from v0.3.0 to v0.4.0
+  - API breaking change: `cookie_count` field renamed to `initial_cookie_count`
+  - API breaking change: `cookie_sizes` field no longer exposed (returns empty vec)
+  - API change: `ke_duration()` is now a direct field access instead of method call
+- **Plugin mode exit codes** now distinguish NTS error severity:
+  - Exit code 2 (CRITICAL) for security-critical failures (AEAD, authenticator, UID issues)
+  - Exit code 3 (UNKNOWN) for configuration/connection issues (handshake, certificate, timeout)
+- **Security**: Unauthenticated NTP responses after successful NTS-KE handshake are now rejected with `unauthenticated_response` error
+
+### Fixed
+- Updated deprecated chrono API usage in tests (`DateTime::from_timestamp` replaces `NaiveDateTime::from_timestamp_opt`)
+
+### Improved
+- **Error diagnostics**: NTS failures now include the error kind in brackets (e.g., `[aead_failure]`) for easier parsing and debugging
+- **Documentation**: Updated `docs/NTS_USAGE.md` with comprehensive error kinds reference and troubleshooting guidance
+
 ---
 ## [2.0.0] - 2025-12-15
 
