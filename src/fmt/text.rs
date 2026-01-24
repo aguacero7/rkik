@@ -16,6 +16,23 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
     let auth_indicator = if r.authenticated {
         format!(" {}", style("[NTS Authenticated]").green().bold())
     } else {
+        #[cfg(feature = "nts")]
+        {
+            if let Some(ref validation) = r.nts_validation {
+                if let Some(ref error) = validation.error {
+                    format!(
+                        " {} ({})",
+                        style("[NTS Failed]").red().bold(),
+                        style(error.kind.as_str()).red()
+                    )
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            }
+        }
+        #[cfg(not(feature = "nts"))]
         String::new()
     };
 
@@ -136,6 +153,24 @@ pub fn render_probe(r: &ProbeResult, verbose: bool) -> String {
                 }
             }
         }
+
+        // NTS validation error details (verbose mode only)
+        #[cfg(feature = "nts")]
+        if let Some(ref validation) = r.nts_validation {
+            if let Some(ref error) = validation.error {
+                out.push_str(&format!(
+                    "\n\n{header}\n{kind_lbl} {kind_val}\n{msg_lbl} {msg_val}",
+                    header = style("=== NTS Validation Error ===")
+                        .red()
+                        .bold()
+                        .underlined(),
+                    kind_lbl = style("Error Kind:").red().bold(),
+                    kind_val = style(error.kind.as_str()).red(),
+                    msg_lbl = style("Message:").red().bold(),
+                    msg_val = style(&error.message).red(),
+                ));
+            }
+        }
     }
 
     out
@@ -176,6 +211,19 @@ pub fn render_compare(results: &[ProbeResult], verbose: bool) -> String {
         let nts_badge = if r.authenticated {
             format!(" {}", style("[NTS]").green().bold())
         } else {
+            #[cfg(feature = "nts")]
+            {
+                if let Some(ref validation) = r.nts_validation {
+                    if validation.error.is_some() {
+                        format!(" {}", style("[NTS FAILED]").red().bold())
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                }
+            }
+            #[cfg(not(feature = "nts"))]
             String::new()
         };
 
