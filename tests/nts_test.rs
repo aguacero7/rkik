@@ -6,7 +6,7 @@ use chrono::{DateTime, Local, Utc};
 use console::set_colors_enabled;
 #[cfg(feature = "nts")]
 use rkik::adapters::nts_client::{
-    map_error_to_kind, NtsError, NtsErrorKind, NtsKeData, NtsValidationOutcome,
+    NtsError, NtsErrorKind, NtsKeData, NtsValidationOutcome, map_error_to_kind,
 };
 #[cfg(feature = "nts")]
 use rkik::fmt;
