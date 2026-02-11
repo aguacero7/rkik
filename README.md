@@ -12,7 +12,7 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 ## Key features
 
 - **Protocol coverage**
-  - NTP/Chrony/ntpd probes over IPv4/IPv6
+  - NTP probes over IPv4/IPv6
   - **NTS (RFC 8915)** authenticated sessions with full TLS/NTS-KE diagnostics
 - **PTP (IEEE 1588-2019)** measurements (Linux-only), including master identity, clock quality, packet stats, and diagnostics in both text and JSON formats
 - **Flexible output**: human-readable, verbose, simple/short, JSON, or compact JSON lines
