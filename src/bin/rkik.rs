@@ -12,6 +12,12 @@ use std::process::{self, Command as ProcessCommand};
 #[derive(Parser, Debug)]
 #[command(name = "rkik")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(long_version = concat!(
+    env!("CARGO_PKG_VERSION"), "\n",
+    "Features: ", env!("RKIK_FEATURES"), "\n",
+    "Platform: ", env!("RKIK_TARGET"), "\n",
+    "Rust:     ", env!("RKIK_RUSTC_VERSION")
+))]
 #[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")]
 struct Cli {
     #[command(subcommand)]
