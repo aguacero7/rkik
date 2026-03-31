@@ -47,7 +47,11 @@ impl std::fmt::Display for OutputFormat {
 
 #[derive(Parser, Debug, Clone)]
 #[command(name = "rkik")]
-#[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(version = env!("CARGO_PKG_/// The above code appears to be a comment block in Rust. In Rust,
+/// comments are denoted by `/*` to start a block comment and `*/`
+/// to end it. Comments are ignored by the compiler and are used to
+/// provide explanations or notes within the code for developers.
+VERSION"))]
 #[command(about = "Rusty Klock Inspection Kit - NTP Query and Compare Tool")]
 pub struct LegacyArgs {
     /// Query a single NTP server (optional)
