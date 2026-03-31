@@ -1,17 +1,13 @@
 fn main() {
-    let mut features = vec![];
-    if std::env::var("CARGO_FEATURE_JSON").is_ok() {
-        features.push("json");
-    }
-    if std::env::var("CARGO_FEATURE_NTS").is_ok() {
-        features.push("nts");
-    }
-    if std::env::var("CARGO_FEATURE_PTP").is_ok() {
-        features.push("ptp");
-    }
-    if std::env::var("CARGO_FEATURE_SYNC").is_ok() {
-        features.push("sync");
-    }
+    let mut features: Vec<String> = std::env::vars()
+        .filter_map(|(key, _)| {
+            const PREFIX: &str = "CARGO_FEATURE_";
+            key.strip_prefix(PREFIX)
+                .map(|stripped| stripped.to_ascii_lowercase())
+        })
+        .collect();
+    features.sort();
+    features.dedup();
 
     let features_str = if features.is_empty() {
         "none".to_string()
@@ -23,7 +19,8 @@ fn main() {
     let target = std::env::var("TARGET").unwrap_or_else(|_| "unknown".to_string());
     println!("cargo:rustc-env=RKIK_TARGET={}", target);
 
-    let rustc_ver = std::process::Command::new("rustc")
+    let rustc = std::env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
+    let rustc_ver = std::process::Command::new(rustc)
         .arg("--version")
         .output()
         .ok()
