@@ -1,17 +1,21 @@
 fn main() {
-    let mut features = vec![];
-    if std::env::var("CARGO_FEATURE_JSON").is_ok() {
-        features.push("json");
-    }
-    if std::env::var("CARGO_FEATURE_NTS").is_ok() {
-        features.push("nts");
-    }
-    if std::env::var("CARGO_FEATURE_PTP").is_ok() {
-        features.push("ptp");
-    }
-    if std::env::var("CARGO_FEATURE_SYNC").is_ok() {
-        features.push("sync");
-    }
+    let mut features: Vec<String> = std::env::vars()
+        .filter_map(|(key, _)| {
+            const PREFIX: &str = "CARGO_FEATURE_";
+            if let Some(stripped) = key.strip_prefix(PREFIX) {
+                // Match cargo feature names by normalizing env var fragment:
+                //   CARGO_FEATURE_JSON  -> "json"
+                //   CARGO_FEATURE_SOME_FEATURE -> "some_feature"
+                Some(stripped.to_ascii_lowercase())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Ensure deterministic ordering regardless of env var ordering
+    features.sort();
+    features.dedup();
 
     let features_str = if features.is_empty() {
         "none".to_string()
