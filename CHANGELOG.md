@@ -1,6 +1,9 @@
 # RKIK - Changelog
 
 ## [Unreleased]
+### Added
+- **Verbose `--version` output**: `rkik --version` now shows compiled features, target platform, and Rust compiler version
+
 ---
 ## [2.1.0] - 2026-01-24
 ### Added
