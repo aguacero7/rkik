@@ -69,6 +69,18 @@ rkik -6 --server 2.pool.ntp.org -j
 - `--format json-short` — compact (`{"utc": "...", "name": "...", "port": 123}`).
   Aliases: `-j/--json`, `-S/--short`.
 
+### Error output
+- Text mode failures include target context when available (single and compare mode), for example:
+  - `Error: time.example.com - dns: No IP address found for 'time.example.com'`
+- JSON / JSON-short modes emit structured errors:
+```json
+{
+  "kind": "dns",
+  "message": "No IP address found for 'time.example.com'",
+  "target": "time.example.com"
+}
+```
+
 ### Continuous mode
 ```bash
 # two measurements, 1s apart
@@ -130,8 +142,8 @@ rkik --ptp --ptp-event-port 3319 127.0.0.1   # query lab PTP master
 See [docs/TEST_ENV.md](TEST_ENV.md) for topology details, port mapping, and troubleshooting tips.
 
 ## Troubleshooting
-- **Resolution failed**: check DNS / try `-6` if needed.
-- **Timeout**: open UDP/123.
+- **Resolution failed**: check DNS / try `-6` if needed. Error lines now include the failing target to speed up compare-mode debugging.
+- **Timeout**: open UDP/123. In compare mode, the failing target is included in the error line.
 - **Inconsistent offsets**: verify local clock and repeatability.
 
 ## FAQ

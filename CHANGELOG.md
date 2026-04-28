@@ -1,6 +1,13 @@
 # RKIK - Changelog
 
-## [Unreleased
+## [Unreleased]
+
+### Changed
+- Improved error context in both single-target and compare modes:
+  - CLI error messages now include the failing target when available (for example: `Error: time.example.com - dns: ...`).
+  - Compare mode preserves per-target context for failures returned from concurrent probes.
+  - JSON error output now includes structured fields: `kind`, `message`, and optional `target`.
+
 ---
 ## [2.0.0] - 2025-12-15
 
