@@ -144,11 +144,14 @@ pub async fn query_one(
     // NTS branch
     #[cfg(feature = "nts")]
     if use_nts {
-        let parsed = parse_target(target)?;
-        let nts_result = nts_client::query_nts(parsed.host, Some(nts_port), timeout).await?;
+        let parsed = parse_target(target).map_err(|e| e.with_target(target))?;
+        let nts_result = nts_client::query_nts(parsed.host, Some(nts_port), timeout)
+            .await
+            .map_err(|e| e.with_target(target))?;
 
         // Resolve IP for display purposes
-        let ip: IpAddr = resolver::resolve_ip(parsed.host, ipv6)?;
+        let ip: IpAddr =
+            resolver::resolve_ip(parsed.host, ipv6).map_err(|e| e.with_target(target))?;
         let local: DateTime<Local> = DateTime::from(nts_result.network_time);
         let timestamp = nts_result.network_time.timestamp();
 
@@ -178,22 +181,25 @@ pub async fn query_one(
     if use_nts {
         return Err(RkikError::Other(
             "NTS support not enabled. Compile with --features nts".to_string(),
-        ));
+        )
+        .with_target(target));
     }
 
-    let parsed = parse_target(target)?;
+    let parsed = parse_target(target).map_err(|e| e.with_target(target))?;
 
-    let ip: IpAddr = resolver::resolve_ip(parsed.host, ipv6)?;
+    let ip: IpAddr = resolver::resolve_ip(parsed.host, ipv6).map_err(|e| e.with_target(target))?;
 
     let port: u16 = parsed.port.unwrap_or(123);
     if parsed.is_ipv6_literal {
         ipv6 = true;
     }
-    let res = ntp_client::query(ip, ipv6, timeout, port).await?;
+    let res = ntp_client::query(ip, ipv6, timeout, port)
+        .await
+        .map_err(|e| e.with_target(target))?;
 
     let utc: DateTime<Utc> = match res.datetime().try_into() {
         Ok(dt) => dt,
-        Err(e) => return Err(RkikError::Other(e.to_string())),
+        Err(e) => return Err(RkikError::Other(e.to_string()).with_target(target)),
     };
     let local: DateTime<Local> = DateTime::from(utc);
 
