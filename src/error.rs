@@ -91,6 +91,11 @@ impl RkikError {
         matches!(self.root(), Self::Network(msg) if msg == "timeout")
     }
 
+    /// True when the underlying error is NTS-related.
+    pub fn is_nts(&self) -> bool {
+        matches!(self.root(), Self::Nts(_))
+    }
+
     /// Serialize this error as JSON text.
     #[cfg(feature = "json")]
     pub fn to_json_string(&self, pretty: bool) -> Result<String, serde_json::Error> {

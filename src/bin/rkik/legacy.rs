@@ -1107,6 +1107,8 @@ fn handle_error(term: &Term, err: RkikError, fmt: OutputFormat, pretty: bool) ->
         2
     } else if err.is_network_timeout() {
         3
+    } else if err.is_nts() {
+        3
     } else {
         1
     }
