@@ -233,8 +233,7 @@ You cannot mix NTS and non-NTS queries in the same compare operation. Either use
 
 RKIK's NTS support is built on:
 
-- **rkik-nts v0.3.0**: High-level NTS client library
-- **ntpd-rs**: Battle-tested NTS implementation from Pendulum Project
+- **rkik-nts v1.0.0**: High-level NTS client library
 - **rustls**: Modern TLS library for Rust
 
 ## Examples

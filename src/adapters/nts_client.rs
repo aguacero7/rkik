@@ -146,9 +146,9 @@ pub async fn query_nts(
         });
 
         NtsKeData {
-            ke_duration_ms: ke_result.ke_duration().as_secs_f64() * 1000.0,
-            cookie_count: ke_result.cookie_count(),
-            cookie_sizes: ke_result.cookie_sizes(),
+            ke_duration_ms: ke_result.ke_duration.as_secs_f64() * 1000.0,
+            cookie_count: ke_result.initial_cookie_count,
+            cookie_sizes: Vec::new(),
             aead_algorithm: ke_result.aead_algorithm.clone(),
             ntp_server: ke_result.ntp_server.to_string(),
             certificate,

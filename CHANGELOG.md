@@ -22,7 +22,7 @@
     - Cookie count and sizes
     - AEAD algorithm negotiation details
     - NTP server address (may differ from NTS-KE server)
-  - **TLS Certificate information** (requires rkik-nts v0.3.0+):
+  - **TLS Certificate information** (requires rkik-nts v1.0.0+):
     - Subject and Issuer
     - Validity period (valid_from, valid_until)
     - Serial number
