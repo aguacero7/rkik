@@ -11,5 +11,6 @@ async fn test_query_invalid_host() {
     )
     .await
     .expect_err("expected error");
-    assert!(matches!(err, rkik::RkikError::Dns(_)));
+    assert!(err.is_dns());
+    assert_eq!(err.target(), Some("no.such.domain.example"));
 }
