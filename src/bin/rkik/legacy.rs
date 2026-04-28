@@ -7,6 +7,8 @@ use std::process;
 use std::time::Duration;
 use tokio::signal;
 
+#[cfg(feature = "nts")]
+use rkik::adapters::nts_client::NtsErrorKind;
 use rkik::{
     ProbeResult, RkikError, compare_many, fmt, query_one,
     stats::{Stats, compute_stats},
@@ -1112,6 +1114,34 @@ fn handle_error(term: &Term, err: RkikError, fmt: OutputFormat, pretty: bool) ->
     } else {
         1
     }
+}
+
+/// Extract NtsErrorKind from an error message with format "... [error_kind]"
+#[cfg(feature = "nts")]
+fn extract_nts_error_kind(msg: &str) -> Option<NtsErrorKind> {
+    // Find the last occurrence of "[" and "]" to extract the error kind
+    let start = msg.rfind('[')?;
+    let end = msg.rfind(']')?;
+    if start >= end {
+        return None;
+    }
+    let kind_str = &msg[start + 1..end];
+
+    // Match the string to the corresponding NtsErrorKind variant
+    Some(match kind_str {
+        "aead_failure" => NtsErrorKind::AeadFailure,
+        "missing_authenticator" => NtsErrorKind::MissingAuthenticator,
+        "unauthenticated_response" => NtsErrorKind::UnauthenticatedResponse,
+        "invalid_unique_id" => NtsErrorKind::InvalidUniqueId,
+        "invalid_origin_timestamp" => NtsErrorKind::InvalidOriginTimestamp,
+        "ke_handshake_failed" => NtsErrorKind::KeHandshakeFailed,
+        "certificate_invalid" => NtsErrorKind::CertificateInvalid,
+        "missing_cookies" => NtsErrorKind::MissingCookies,
+        "malformed_extensions" => NtsErrorKind::MalformedExtensions,
+        "timeout" => NtsErrorKind::Timeout,
+        "network" => NtsErrorKind::Network,
+        _ => NtsErrorKind::Unknown,
+    })
 }
 
 #[cfg(feature = "sync")]

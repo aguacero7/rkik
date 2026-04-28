@@ -5,7 +5,7 @@ use std::net::IpAddr;
 use serde::Serialize;
 
 #[cfg(feature = "nts")]
-use crate::adapters::nts_client::NtsKeData;
+use crate::adapters::nts_client::{NtsKeData, NtsValidationOutcome};
 
 /// Target host resolved to an IP address.
 #[derive(Clone, Debug)]
@@ -31,4 +31,6 @@ pub struct ProbeResult {
     pub authenticated: bool, // Whether NTS authentication was used
     #[cfg(feature = "nts")]
     pub nts_ke_data: Option<NtsKeData>, // NTS-KE diagnostic data (only with nts feature)
+    #[cfg(feature = "nts")]
+    pub nts_validation: Option<NtsValidationOutcome>, // Detailed NTS validation outcome
 }

@@ -171,6 +171,8 @@ pub async fn query_one(
             authenticated: nts_result.authenticated,
             #[cfg(feature = "nts")]
             nts_ke_data: nts_result.nts_ke_data,
+            #[cfg(feature = "nts")]
+            nts_validation: Some(nts_result.nts_validation),
         });
     }
 
@@ -223,5 +225,7 @@ pub async fn query_one(
         authenticated: false, // Standard NTP is not authenticated
         #[cfg(feature = "nts")]
         nts_ke_data: None, // No NTS-KE data for standard NTP queries
+        #[cfg(feature = "nts")]
+        nts_validation: None, // No NTS validation for standard NTP queries
     })
 }

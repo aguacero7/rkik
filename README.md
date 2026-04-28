@@ -12,7 +12,7 @@ Most systems rely on a daemon (like chronyd or ntpd) to synchronize time. But wh
 ## Key features
 
 - **Protocol coverage**
-  - NTP/Chrony/ntpd probes over IPv4/IPv6
+  - NTP probes over IPv4/IPv6
   - **NTS (RFC 8915)** authenticated sessions with full TLS/NTS-KE diagnostics
 - **PTP (IEEE 1588-2019)** measurements (Linux-only), including master identity, clock quality, packet stats, and diagnostics in both text and JSON formats
 - **Flexible output**: human-readable, verbose, simple/short, JSON, or compact JSON lines
@@ -58,48 +58,8 @@ cargo build --release
 sudo cp target/release/rkik /usr/local/bin
 rkik --help
 ```
-
-
-### Default Features
-
-By default, `rkik` includes:
-- **JSON output** (`json` feature)
-- **System time sync** (`sync` feature)
-- **NTS support** (`nts` feature)
-- **PTP diagnostics** (`ptp` feature, automatically effective only on Linux targets)
-
-> **Platform note:** The `ptp` feature depends on Linux timestamping support.
-> When building for Linux, it is enabled as part of the default feature set.
-> On other operating systems the feature is ignored, and the CLI hides the `--ptp`
-> switches unless you explicitly build a Linux target.
-
-```bash
-# Standard build includes everything
-cargo build --release
-
-# Or install from crates.io
-cargo install rkik
-```
-
-### Compile with custom features
-
-#### Minimal build (no sync, no NTS)
-```bash
-cargo build --release --no-default-features --features json
-```
-
-#### Only specific features
-```bash
-# Only sync
-cargo build --release --no-default-features --features "json,sync"
-
-# Only NTS
-cargo build --release --no-default-features --features "json,nts"
-
-# Only PTP (useful for integrations)
-cargo build --release --no-default-features --features "json,ptp"
-```
-
+## Packaging status
+[![Packaging status](https://repology.org/badge/vertical-allrepos/rkik.svg)](https://repology.org/project/rkik/versions)
 ---
 
 ## Usage Examples
@@ -343,7 +303,6 @@ Commands:
   help                    Print help for the chosen command
 
 Each probe-oriented subcommand accepts the familiar options (`--count`, `--interval`, `--format`, `--plugin`, `--warning`, `--critical`, `--nts`, `--ipv6`, etc.). The legacy one-shot CLI still works: running `rkik <target>` without a subcommand automatically falls back to the historical parser (with a deprecation warning).
-```
 
 ### Configuration & presets
 - Defaults (timeout/format/ipv6) and presets live in `$RKIK_CONFIG_DIR/config.toml`. If the env var is unset, rkik falls back to the platform config directory (e.g. `~/.config/rkik`).
