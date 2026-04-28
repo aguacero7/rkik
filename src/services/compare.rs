@@ -26,7 +26,11 @@ pub async fn compare_many(
 ) -> Result<Vec<ProbeResult>, RkikError> {
     let futures = targets
         .iter()
-        .map(|t| query_one(t, ipv6_only, timeout, use_nts, nts_port))
+        .map(|target| async move {
+            query_one(target, ipv6_only, timeout, use_nts, nts_port)
+                .await
+                .map_err(|e| e.with_target(target))
+        })
         .collect::<Vec<_>>();
     let results = join_all(futures).await;
     let mut out = Vec::new();

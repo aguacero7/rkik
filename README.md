@@ -270,6 +270,19 @@ Round Trip Delay: 33.192 ms
 
 ```
 
+**Error output (target-aware):**
+```text
+Error: time.example.com - dns: No IP address found for 'time.example.com'
+```
+
+```json
+{
+  "kind": "dns",
+  "message": "No IP address found for 'time.example.com'",
+  "target": "time.example.com"
+}
+```
+
 ---
 
 ## Arguments supported 
@@ -296,6 +309,7 @@ Each probe-oriented subcommand accepts the familiar options (`--count`, `--inter
 - Update defaults via `rkik config set default-timeout 3.5`, inspect with `rkik config list`, and clear with `rkik config clear default-format`.
 - Store reusable scenarios with `rkik preset add nightly -- ntp pool.ntp.org --count 5`. Run them via `rkik preset run nightly`, which spawns rkik with the recorded arguments.
 - JSON payloads follow the same verbosity rules as the CLI: add `-v/--verbose` to include `stratum`, `ref_id`, and `timestamp` fields; without it these keys are omitted for a leaner output.
+- When using `--format json` or `--format json-short`, failures are emitted as structured JSON errors (`kind`, `message`, optional `target`) instead of plain text.
 
 
 --- 

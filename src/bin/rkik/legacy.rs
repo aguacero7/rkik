@@ -425,7 +425,7 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
                         }
                     }
                     Err(e) => {
-                        let code = handle_error(&term, e);
+                        let code = handle_error(&term, e, args.format.clone(), args.pretty);
                         let _ = io::stdout().flush();
                         process::exit(code);
                     }
@@ -568,7 +568,7 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
                     let _ = io::stdout().flush();
                     process::exit(3);
                 }
-                let code = handle_error(term, e);
+                let code = handle_error(term, e, args.format.clone(), args.pretty);
                 let _ = io::stdout().flush();
                 process::exit(code);
             }
@@ -802,7 +802,7 @@ async fn ptp_query_loop(
                     let _ = io::stdout().flush();
                     process::exit(3);
                 }
-                let code = handle_error(term, e);
+                let code = handle_error(term, e, args.format.clone(), args.pretty);
                 let _ = io::stdout().flush();
                 process::exit(code);
             }
@@ -907,7 +907,7 @@ async fn ptp_compare_loop(
                 }
             }
             Err(e) => {
-                let code = handle_error(term, e);
+                let code = handle_error(term, e, args.format.clone(), args.pretty);
                 let _ = io::stdout().flush();
                 process::exit(code);
             }
@@ -1084,25 +1084,35 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
     }
 }
 
-fn handle_error(term: &Term, err: RkikError) -> i32 {
-    term.write_line(&style(format!("Error: {}", err)).red().to_string())
-        .ok();
-    match &err {
-        RkikError::Dns(_) => 2,
-        RkikError::Network(s) if s == "timeout" => 3,
-        #[cfg(feature = "nts")]
-        RkikError::Nts(msg) => {
-            // Extract NTS error kind from message (format: "... [error_kind]")
-            // and delegate to NtsErrorKind::plugin_exit_code() for consistent exit codes
-            if let Some(kind) = extract_nts_error_kind(msg) {
-                kind.plugin_exit_code()
-            } else {
-                3 // UNKNOWN if we can't parse the error kind
+fn handle_error(term: &Term, err: RkikError, fmt: OutputFormat, pretty: bool) -> i32 {
+    match fmt {
+        OutputFormat::Json | OutputFormat::JsonShort => {
+            #[cfg(feature = "json")]
+            match err.to_json_string(pretty) {
+                Ok(s) => println!("{}", s),
+                Err(_) => {
+                    term.write_line(&style(format!("Error: {}", err)).red().to_string())
+                        .ok();
+                }
             }
+            #[cfg(not(feature = "json"))]
+            term.write_line(&style(format!("Error: {}", err)).red().to_string())
+                .ok();
         }
-        #[cfg(not(feature = "nts"))]
-        RkikError::Nts(_) => 3,
-        _ => 1,
+        _ => {
+            term.write_line(&style(format!("Error: {}", err)).red().to_string())
+                .ok();
+        }
+    }
+
+    if err.is_dns() {
+        2
+    } else if err.is_network_timeout() {
+        3
+    } else if err.is_nts() {
+        3
+    } else {
+        1
     }
 }
 
