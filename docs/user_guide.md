@@ -70,7 +70,7 @@ rkik -6 --server 2.pool.ntp.org -j
   Aliases: `-j/--json`, `-S/--short`.
 
 ### Error output
-- Text mode failures include target context when available (single and compare modes), for example:
+- Text mode failures include target context when available (in single and compare modes), for example:
   - `Error: time.example.com - dns: No IP address found for 'time.example.com'`
 - JSON / JSON-short modes emit structured errors:
 ```json

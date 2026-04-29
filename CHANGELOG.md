@@ -2,11 +2,21 @@
 
 ## [Unreleased]
 
+### Fixed
+- **NTS authentication now works against real public servers** (rkik-nts v1.0.0)
+  - NTS exporter key derivation was using an incorrect NTPv4 protocol context — all authenticated queries were silently failing against real servers (`time.cloudflare.com`, `nts.ntp.se`, etc.)
+  - NTS Authenticator extension (`0x0404`) was serialized in a format incompatible with RFC 8915-compliant servers
+  - These two bugs made the `--nts` flag introduced in v2.0.0 non-functional in practice against any public NTS server
+  - rkik-nts v1.0.0 is a full self-contained RFC 8915 reimplementation and fixes both issues
+- **NTS clock offset sign corrected**: offset was computed from an unsigned `Duration`, always appearing positive even when the local clock was behind the NTS server
+- **NTS error classification rewritten**: error kind mapping now pattern-matches on the structured `rkik_nts::Error` enum instead of fragile string matching on error messages, eliminating misclassification edge cases
+
 ### Changed
 - Improved error context in both single-target and compare modes:
   - CLI error messages now include the failing target when available (for example: `Error: time.example.com - dns: ...`).
   - Compare mode preserves per-target context for failures returned from concurrent probes.
   - JSON error output now includes structured fields: `kind`, `message`, and optional `target`.
+
 ### Added
 - **Verbose `--version` output**: `rkik --version` now shows compiled features, target platform, and Rust compiler version
 
@@ -65,7 +75,7 @@
     - Cookie count and sizes
     - AEAD algorithm negotiation details
     - NTP server address (may differ from NTS-KE server)
-  - **TLS Certificate information** (requires rkik-nts v0.3.0+):
+  - **TLS Certificate information** (requires rkik-nts v1.0.0+):
     - Subject and Issuer
     - Validity period (valid_from, valid_until)
     - Serial number
