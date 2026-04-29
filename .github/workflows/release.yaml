@@ -12,22 +12,27 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
-
+        
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
 
       - name: Install packaging dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm build-essential zip mingw-w64
+          sudo apt-get install -y rpm build-essential zip mingw-w64 musl-tools
 
           cargo install cargo-deb --locked
           cargo install cargo-generate-rpm --locked
           cargo install cross --locked
-          
-      - name: Build Linux binary
+
+      - name: Build Linux portable binary
         run: |
-          CARGO_TARGET_DIR=target-linux \
+          cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Build native Linux binary for packages
+        run: |
           cargo build --release
 
       - name: Build DEB package
@@ -44,20 +49,17 @@ jobs:
           cross build \
             --release \
             --target x86_64-pc-windows-gnu
+            
       - name: Prepare release artifacts
         run: |
           mkdir -p dist
+          cp target/x86_64-unknown-linux-musl/release/rkik dist/rkik-linux-x86_64
 
-          # Linux binary
-          cp target-linux/release/rkik dist/rkik-linux-x86_64
-
-          # Windows binary
           cp target-windows/x86_64-pc-windows-gnu/release/rkik.exe \
             dist/rkik-windows-x86_64.exe
 
-          # Packages
-          cp target-packages/debian/*.deb dist/
-          cp target-packages/generate-rpm/*.rpm dist/
+          cp target/debian/*.deb dist/
+          cp target/generate-rpm/*.rpm dist/
 
       - name: Create archives
         run: |
