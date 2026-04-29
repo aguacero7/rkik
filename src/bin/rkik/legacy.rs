@@ -7,7 +7,6 @@ use std::process;
 use std::time::Duration;
 use tokio::signal;
 
-#[cfg(feature = "nts")]
 use rkik::{
     ProbeResult, RkikError, compare_many, fmt, query_one,
     stats::{Stats, compute_stats},
