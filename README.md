@@ -1,4 +1,4 @@
-# rkik — Rusty Klock Inspection Kit
+# rkik - Rusty Klock Inspection Kit
 
 [![Build & Tests](https://github.com/aguacero7/rkik/actions/workflows/ci-test-n-build.yml/badge.svg)](https://github.com/aguacero7/rkik/actions/workflows/ci-test-n-build.yml)
 [![crates.io](https://img.shields.io/crates/v/rkik.svg)](https://crates.io/crates/rkik)
@@ -20,8 +20,7 @@ rkik queries NTP, NTS, and PTP servers and tells you what they say — offset, R
 
 ## Demo
 
-<!-- asciinema demo: record with `asciinema rec rkik-demo.cast`, then upload and replace below -->
-<!-- [![asciicast](https://asciinema.org/a/PLACEHOLDER.svg)](https://asciinema.org/a/PLACEHOLDER) -->
+[![asciicast](https://asciinema.org/a/LBiUOMMoimo3DWHh.svg)](https://asciinema.org/a/LBiUOMMoimo3DWHh)
 
 ```
 $ rkik --nts time.cloudflare.com -v
