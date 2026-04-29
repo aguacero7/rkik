@@ -1134,6 +1134,8 @@ dependencies = [
 [[package]]
 name = "rkik-nts"
 version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9bcaa6e2f4e4d717106e6147e8b35f71673a53ccef634eb70395bbdc5cab36d"
 dependencies = [
  "aes-siv",
  "chrono",

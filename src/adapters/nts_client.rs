@@ -1,7 +1,7 @@
 //! NTS (Network Time Security) client adapter using rkik-nts library.
 
 #[cfg(feature = "nts")]
-use rkik_nts::{NtsClient, NtsClientConfig};
+use rkik_nts::{NtsClient, NtsClientConfig, error::Error as NtsLibError};
 
 use chrono::{DateTime, Utc};
 use std::time::Duration;
@@ -208,48 +208,18 @@ pub struct CertificateInfo {
     pub is_self_signed: bool,
 }
 
-/// Map an error message string to an NtsErrorKind.
-/// This function analyzes error messages to categorize them appropriately.
-///
-/// The order of checks matters - more specific patterns are checked before
-/// general ones to avoid misclassification (e.g., "malformed certificate"
-/// should map to CertificateInvalid, not MalformedExtensions).
 #[cfg(feature = "nts")]
-pub fn map_error_to_kind(error_msg: &str) -> NtsErrorKind {
-    let msg_lower = error_msg.to_lowercase();
-
-    // Security-critical errors first (most specific patterns)
-    if msg_lower.contains("aead") || msg_lower.contains("authentication tag") {
-        NtsErrorKind::AeadFailure
-    } else if msg_lower.contains("authenticator") {
-        NtsErrorKind::MissingAuthenticator
-    } else if msg_lower.contains("unique identifier") || msg_lower.contains("uid") {
-        NtsErrorKind::InvalidUniqueId
-    } else if msg_lower.contains("origin timestamp") || msg_lower.contains("replay") {
-        NtsErrorKind::InvalidOriginTimestamp
-    } else if msg_lower.contains("cookie") {
-        NtsErrorKind::MissingCookies
-    // Certificate errors before malformed/extension (to avoid "malformed certificate" misclassification)
-    } else if msg_lower.contains("certificate") || msg_lower.contains("cert") {
-        NtsErrorKind::CertificateInvalid
-    // Now check for malformed extensions (after certificate check)
-    } else if msg_lower.contains("extension") || msg_lower.contains("malformed") {
-        NtsErrorKind::MalformedExtensions
-    } else if msg_lower.contains("handshake")
-        || msg_lower.contains("nts-ke")
-        || msg_lower.contains("tls")
-    {
-        NtsErrorKind::KeHandshakeFailed
-    // Timeout before network (timeout is more specific)
-    } else if msg_lower.contains("timeout") || msg_lower.contains("timed out") {
-        NtsErrorKind::Timeout
-    } else if msg_lower.contains("network")
-        || msg_lower.contains("connection")
-        || msg_lower.contains("refused")
-    {
-        NtsErrorKind::Network
-    } else {
-        NtsErrorKind::Unknown
+fn map_nts_error(err: &NtsLibError) -> NtsErrorKind {
+    match err {
+        NtsLibError::AeadVerificationFailed(_) => NtsErrorKind::AeadFailure,
+        NtsLibError::MissingAuthenticator => NtsErrorKind::MissingAuthenticator,
+        NtsLibError::AuthenticationFailed(_) => NtsErrorKind::UnauthenticatedResponse,
+        NtsLibError::MissingNtsCookie | NtsLibError::NoCookiesReturned => NtsErrorKind::MissingCookies,
+        NtsLibError::MalformedNtsExtension(_) | NtsLibError::InvalidResponse(_) | NtsLibError::Protocol(_) => NtsErrorKind::MalformedExtensions,
+        NtsLibError::Tls(_) | NtsLibError::KeyExchange(_) => NtsErrorKind::KeHandshakeFailed,
+        NtsLibError::Timeout => NtsErrorKind::Timeout,
+        NtsLibError::Io(_) | NtsLibError::ServerUnavailable(_) => NtsErrorKind::Network,
+        NtsLibError::InvalidConfig(_) | NtsLibError::Other(_) => NtsErrorKind::Unknown,
     }
 }
 
@@ -298,16 +268,14 @@ pub async fn query_nts(
 
     // Perform NTS-KE handshake
     client.connect().await.map_err(|e| {
-        let msg = e.to_string();
-        let kind = map_error_to_kind(&msg);
-        RkikError::Nts(format!("NTS-KE failed: {} [{}]", msg, kind))
+        let kind = map_nts_error(&e);
+        RkikError::Nts(format!("NTS-KE failed: {} [{}]", e, kind))
     })?;
 
     // Get authenticated time
     let time_snapshot = client.get_time().await.map_err(|e| {
-        let msg = e.to_string();
-        let kind = map_error_to_kind(&msg);
-        RkikError::Nts(format!("NTS time query failed: {} [{}]", msg, kind))
+        let kind = map_nts_error(&e);
+        RkikError::Nts(format!("NTS time query failed: {} [{}]", e, kind))
     })?;
 
     // Check if response is authenticated - reject unauthenticated responses after NTS-KE
@@ -347,9 +315,7 @@ pub async fn query_nts(
     // Convert SystemTime to DateTime<Utc>
     let network_time: DateTime<Utc> = time_snapshot.network_time.into();
 
-    // Convert offset from Duration to milliseconds
-    // offset is the difference between network_time and system_time
-    let offset_ms = time_snapshot.offset.as_secs_f64() * 1000.0;
+    let offset_ms = time_snapshot.offset_signed() as f64;
 
     // Convert round_trip_delay from Duration to milliseconds
     let rtt_ms = time_snapshot.round_trip_delay.as_secs_f64() * 1000.0;
