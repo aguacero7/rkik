@@ -32,12 +32,10 @@ jobs:
 
       - name: Build DEB package
         run: |
-          CARGO_TARGET_DIR=target-packages \
           cargo deb --no-build
 
       - name: Build RPM package
         run: |
-          CARGO_TARGET_DIR=target-packages \
           cargo generate-rpm
 
       - name: Build Windows binary
