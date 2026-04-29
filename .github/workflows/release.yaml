@@ -10,47 +10,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Install Rust
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install packaging tools
+      - name: Install packaging dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm build-essential zip
+          sudo apt-get install -y rpm build-essential zip mingw-w64
+
           cargo install cargo-deb --locked
           cargo install cargo-generate-rpm --locked
           cargo install cross --locked
+          
+      - name: Build Linux binary
+        run: |
+          CARGO_TARGET_DIR=target-linux \
+          cargo build --release
 
-      - name: Build Linux x86_64
-        run: cargo build --release
+      - name: Build DEB package
+        run: |
+          CARGO_TARGET_DIR=target-packages \
+          cargo deb --no-build
 
-      - name: Generate .deb package
-        run: cargo deb
+      - name: Build RPM package
+        run: |
+          CARGO_TARGET_DIR=target-packages \
+          cargo generate-rpm
 
-      - name: Generate .rpm package
-        run: cargo generate-rpm
-
-      - name: Prepare Linux artifacts
+      - name: Build Windows binary
+        run: |
+          CARGO_TARGET_DIR=target-windows \
+          cross build \
+            --release \
+            --target x86_64-pc-windows-gnu
+      - name: Prepare release artifacts
         run: |
           mkdir -p dist
-          cp target/release/rkik dist/rkik-linux-x86_64
-          cp target/debian/*.deb dist/
-          cp target/generate-rpm/*.rpm dist/
 
-      - name: Build Windows x86_64
+          # Linux binary
+          cp target-linux/release/rkik dist/rkik-linux-x86_64
+
+          # Windows binary
+          cp target-windows/x86_64-pc-windows-gnu/release/rkik.exe \
+            dist/rkik-windows-x86_64.exe
+
+          # Packages
+          cp target-packages/debian/*.deb dist/
+          cp target-packages/generate-rpm/*.rpm dist/
+
+      - name: Create archives
         run: |
-          CARGO_TARGET_DIR=target-cross \
-            cross build --release --target x86_64-pc-windows-gnu
+          tar -czf rkik-linux-x86_64.tar.gz \
+            -C dist rkik-linux-x86_64
 
-      - name: Prepare Archives
-        run: |
-          cp target-cross/x86_64-pc-windows-gnu/release/rkik.exe dist/rkik-windows-x86_64.exe
-
-          tar -czvf rkik-linux-x86_64.tar.gz -C dist rkik-linux-x86_64
-          zip -j rkik-windows-x86_64.zip dist/rkik-windows-x86_64.exe
+          zip -j rkik-windows-x86_64.zip \
+            dist/rkik-windows-x86_64.exe
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
