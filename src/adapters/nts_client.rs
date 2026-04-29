@@ -214,8 +214,12 @@ fn map_nts_error(err: &NtsLibError) -> NtsErrorKind {
         NtsLibError::AeadVerificationFailed(_) => NtsErrorKind::AeadFailure,
         NtsLibError::MissingAuthenticator => NtsErrorKind::MissingAuthenticator,
         NtsLibError::AuthenticationFailed(_) => NtsErrorKind::UnauthenticatedResponse,
-        NtsLibError::MissingNtsCookie | NtsLibError::NoCookiesReturned => NtsErrorKind::MissingCookies,
-        NtsLibError::MalformedNtsExtension(_) | NtsLibError::InvalidResponse(_) | NtsLibError::Protocol(_) => NtsErrorKind::MalformedExtensions,
+        NtsLibError::MissingNtsCookie | NtsLibError::NoCookiesReturned => {
+            NtsErrorKind::MissingCookies
+        }
+        NtsLibError::MalformedNtsExtension(_)
+        | NtsLibError::InvalidResponse(_)
+        | NtsLibError::Protocol(_) => NtsErrorKind::MalformedExtensions,
         NtsLibError::Tls(_) | NtsLibError::KeyExchange(_) => NtsErrorKind::KeHandshakeFailed,
         NtsLibError::Timeout => NtsErrorKind::Timeout,
         NtsLibError::Io(_) | NtsLibError::ServerUnavailable(_) => NtsErrorKind::Network,
