@@ -60,6 +60,7 @@
 ### Improved
 - **Error diagnostics**: NTS failures now include the error kind in brackets (e.g., `[aead_failure]`) for easier parsing and debugging
 - **Documentation**: Updated `docs/NTS_USAGE.md` with comprehensive error kinds reference and troubleshooting guidance
+
 ---
 ## [2.0.0] - 2025-12-15
 
