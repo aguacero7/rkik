@@ -11,23 +11,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install packaging tools
         run: |
-          sudo apt update && sudo apt install -y rpm build-essential
-          cargo install cargo-deb
-          cargo install cargo-generate-rpm
+          sudo apt-get update
+          sudo apt-get install -y rpm build-essential zip
+          cargo install cargo-deb --locked
+          cargo install cargo-generate-rpm --locked
           cargo install cross --locked
 
-
-      - name: Build release binary
+      - name: Build Linux x86_64
         run: cargo build --release
 
       - name: Generate .deb package
@@ -36,33 +33,35 @@ jobs:
       - name: Generate .rpm package
         run: cargo generate-rpm
 
-      - name: Build Linux x86_64 # Build native linux
-        run: cross build --release --target x86_64-unknown-linux-gnu
+      - name: Prepare Linux artifacts
+        run: |
+          mkdir -p dist
+          cp target/release/rkik dist/rkik-linux-x86_64
+          cp target/debian/*.deb dist/
+          cp target/generate-rpm/*.rpm dist/
 
-      - name: Build Windows x86_64 # windows cross compilation
-        run: cross build --release --target x86_64-pc-windows-gnu
-
+      - name: Build Windows x86_64
+        run: |
+          CARGO_TARGET_DIR=target-cross \
+            cross build --release --target x86_64-pc-windows-gnu
 
       - name: Prepare Archives
         run: |
-          mkdir -p dist
-          
-          cp target/x86_64-unknown-linux-gnu/release/rkik dist/rkik-linux-x86_64
-          cp target/x86_64-pc-windows-gnu/release/rkik.exe dist/rkik-windows-x86_64.exe
-          
+          cp target-cross/x86_64-pc-windows-gnu/release/rkik.exe dist/rkik-windows-x86_64.exe
+
           tar -czvf rkik-linux-x86_64.tar.gz -C dist rkik-linux-x86_64
-          zip rkik-windows-x86_64.zip dist/rkik-windows-x86_64.exe
+          zip -j rkik-windows-x86_64.zip dist/rkik-windows-x86_64.exe
 
       - name: Upload release assets
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             rkik-linux-x86_64.tar.gz
             rkik-windows-x86_64.zip
             dist/rkik-linux-x86_64
             dist/rkik-windows-x86_64.exe
-            target/debian/*.deb
-            target/generate-rpm/*.rpm
+            dist/*.deb
+            dist/*.rpm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
