@@ -16,6 +16,7 @@ include = [ #for CI to not publish artifacts
     "Cargo.lock",
     "README.md",
     "LICENSE*",
+    "build.rs",
     "src/**",
     "docs/**"
 ]
