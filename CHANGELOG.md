@@ -1,7 +1,8 @@
 # RKIK - Changelog
 
 ## [Unreleased]
-
+---
+## [2.2.0] - 2026-04-29
 ### Fixed
 - **NTS authentication now works against real public servers** (rkik-nts v1.0.0)
   - NTS exporter key derivation was using an incorrect NTPv4 protocol context — all authenticated queries were silently failing against real servers (`time.cloudflare.com`, `nts.ntp.se`, etc.)
