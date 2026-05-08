@@ -216,13 +216,6 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
     if args.short && args.json {
         args.format = OutputFormat::JsonShort;
     }
-    // colors
-    let want_color = (matches!(args.format, OutputFormat::Text)
-        || matches!(args.format, OutputFormat::Simple))
-        && io::stdout().is_terminal()
-        && std::env::var_os("NO_COLOR").is_none()
-        && !args.no_color;
-    set_colors_enabled(want_color);
 
     let term = Term::stdout();
     let timeout = Duration::from_secs_f64(args.timeout);
@@ -324,17 +317,88 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
         process::exit(2);
     }
 
-    // refuse --plugin with --compare for now
-    if args.plugin && args.compare.is_some() {
-        term.write_line(
-            &style("--plugin cannot be used with --compare")
-                .red()
-                .to_string(),
-        )
-        .ok();
+    //--plugin checks
+    // refuse --plugin --compare, --verbose, --json, --pretty, --short, --format(except for text), --infinte
+    if args.plugin{
+        if args.compare.is_some() {
+            term.write_line(
+                &style("--plugin cannot be used with --compare")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+        if args.verbose {
+            term.write_line(
+                &style("--plugin cannot be used with --verbose")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
         let _ = io::stdout().flush();
         process::exit(2);
+        }
+        if args.json {
+            term.write_line(
+                &style("--plugin cannot be used with --json")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+        if args.pretty {
+            term.write_line(
+                &style("--plugin cannot be used with --pretty")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+        if args.short {
+            term.write_line(
+                &style("--plugin cannot be used with --short")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+        if !matches!(args.format, OutputFormat::Text) {
+            term.write_line(
+                &style("--plugin cannot be used with --format")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+        if args.infinite {
+            term.write_line(
+                &style("--plugin cannot be used with --infinite")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
     }
+
+    // colors
+    let want_color = (matches!(args.format, OutputFormat::Text)
+        || matches!(args.format, OutputFormat::Simple))
+        && io::stdout().is_terminal()
+        && std::env::var_os("NO_COLOR").is_none()
+        && !args.no_color;
+    set_colors_enabled(want_color);
 
     // refuse --sync with --compare
     #[cfg(feature = "sync")]
