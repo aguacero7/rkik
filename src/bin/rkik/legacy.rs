@@ -317,78 +317,28 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
         process::exit(2);
     }
 
-    //--plugin checks
-    // refuse --plugin --compare, --verbose, --json, --pretty, --short, --format(except for text), --infinte
-    if args.plugin{
+    // refuse --plugin --compare, --verbose, --json, --pretty, --short, --format(except for text), --infinite
+    if args.plugin {
         if args.compare.is_some() {
-            term.write_line(
-                &style("--plugin cannot be used with --compare")
-                    .red()
-                    .to_string(),
-            )
-            .ok();
-            let _ = io::stdout().flush();
-            process::exit(2);
+            plugin_conflict("compare", &term);
         }
         if args.verbose {
-            term.write_line(
-                &style("--plugin cannot be used with --verbose")
-                    .red()
-                    .to_string(),
-            )
-            .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
+            plugin_conflict("verbose", &term);
         }
         if args.json {
-            term.write_line(
-                &style("--plugin cannot be used with --json")
-                    .red()
-                    .to_string(),
-            )
-            .ok();
-            let _ = io::stdout().flush();
-            process::exit(2);
+            plugin_conflict("json", &term);
         }
         if args.pretty {
-            term.write_line(
-                &style("--plugin cannot be used with --pretty")
-                    .red()
-                    .to_string(),
-            )
-            .ok();
-            let _ = io::stdout().flush();
-            process::exit(2);
+            plugin_conflict("pretty", &term);
         }
         if args.short {
-            term.write_line(
-                &style("--plugin cannot be used with --short")
-                    .red()
-                    .to_string(),
-            )
-            .ok();
-            let _ = io::stdout().flush();
-            process::exit(2);
+            plugin_conflict("short", &term);
         }
         if !matches!(args.format, OutputFormat::Text) {
-            term.write_line(
-                &style("--plugin cannot be used with --format")
-                    .red()
-                    .to_string(),
-            )
-            .ok();
-            let _ = io::stdout().flush();
-            process::exit(2);
+            plugin_conflict("format", &term);
         }
         if args.infinite {
-            term.write_line(
-                &style("--plugin cannot be used with --infinite")
-                    .red()
-                    .to_string(),
-            )
-            .ok();
-            let _ = io::stdout().flush();
-            process::exit(2);
+            plugin_conflict("infinite", &term);
         }
     }
 
@@ -1176,6 +1126,18 @@ fn handle_error(term: &Term, err: RkikError, fmt: OutputFormat, pretty: bool) ->
     } else {
         1
     }
+}
+
+//--plugin checks
+fn plugin_conflict(flag: &str, term: &Term) {
+    term.write_line(
+        &style(format!("--plugin cannot be used with --{}", flag))
+            .red()
+            .to_string(),
+    )
+    .ok();
+    let _ = io::stdout().flush();
+    process::exit(2);
 }
 
 #[cfg(feature = "sync")]
