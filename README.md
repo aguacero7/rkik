@@ -68,10 +68,10 @@ nix shell nixpkgs#rkik
 
 ```bash
 # Debian / Ubuntu
-sudo apt install ./rkik_2.1.0-1_amd64.deb
+sudo apt install ./rkik_2.2.0-1_amd64.deb
 
 # Fedora / RHEL / Alma / Rocky
-sudo dnf install rkik-2.1.0-1.x86_64.rpm
+sudo dnf install rkik-2.2.0-1.x86_64.rpm
 ```
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/rkik.svg)](https://repology.org/project/rkik/versions)
