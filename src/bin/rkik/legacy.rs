@@ -216,13 +216,6 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
     if args.short && args.json {
         args.format = OutputFormat::JsonShort;
     }
-    // colors
-    let want_color = (matches!(args.format, OutputFormat::Text)
-        || matches!(args.format, OutputFormat::Simple))
-        && io::stdout().is_terminal()
-        && std::env::var_os("NO_COLOR").is_none()
-        && !args.no_color;
-    set_colors_enabled(want_color);
 
     let term = Term::stdout();
     let timeout = Duration::from_secs_f64(args.timeout);
@@ -324,17 +317,38 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
         process::exit(2);
     }
 
-    // refuse --plugin with --compare for now
-    if args.plugin && args.compare.is_some() {
-        term.write_line(
-            &style("--plugin cannot be used with --compare")
-                .red()
-                .to_string(),
-        )
-        .ok();
-        let _ = io::stdout().flush();
-        process::exit(2);
+    // refuse --plugin --compare, --verbose, --json, --pretty, --short, --format(except for text), --infinite
+    if args.plugin {
+        if args.compare.is_some() {
+            plugin_conflict("compare", &term);
+        }
+        if args.verbose {
+            plugin_conflict("verbose", &term);
+        }
+        if args.json {
+            plugin_conflict("json", &term);
+        }
+        if args.pretty {
+            plugin_conflict("pretty", &term);
+        }
+        if args.short {
+            plugin_conflict("short", &term);
+        }
+        if !matches!(args.format, OutputFormat::Text) {
+            plugin_conflict("format", &term);
+        }
+        if args.infinite {
+            plugin_conflict("infinite", &term);
+        }
     }
+
+    // colors
+    let want_color = (matches!(args.format, OutputFormat::Text)
+        || matches!(args.format, OutputFormat::Simple))
+        && io::stdout().is_terminal()
+        && std::env::var_os("NO_COLOR").is_none()
+        && !args.no_color;
+    set_colors_enabled(want_color);
 
     // refuse --sync with --compare
     #[cfg(feature = "sync")]
@@ -1112,6 +1126,18 @@ fn handle_error(term: &Term, err: RkikError, fmt: OutputFormat, pretty: bool) ->
     } else {
         1
     }
+}
+
+//--plugin checks
+fn plugin_conflict(flag: &str, term: &Term) {
+    term.write_line(
+        &style(format!("--plugin cannot be used with --{}", flag))
+            .red()
+            .to_string(),
+    )
+    .ok();
+    let _ = io::stdout().flush();
+    process::exit(2);
 }
 
 #[cfg(feature = "sync")]
