@@ -1,6 +1,12 @@
 # RKIK - Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Strengthened `--plugin` mode validation by rejecting incompatible flags and preserving the fixed Nagios/Centreon-compatible text output.
+- Refactored repeated plugin error handling into a shared helper function.
+
 ---
 ## [2.2.0] - 2026-04-29
 ### Fixed
