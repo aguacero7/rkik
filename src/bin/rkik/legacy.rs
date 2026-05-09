@@ -24,6 +24,7 @@ pub enum OutputFormat {
     Json,
     Simple,
     JsonShort,
+    Csv,
 }
 
 impl OutputFormat {
@@ -33,6 +34,7 @@ impl OutputFormat {
             OutputFormat::Json => "json",
             OutputFormat::Simple => "simple",
             OutputFormat::JsonShort => "json-short",
+            OutputFormat::Csv => "csv",
         }
     }
 }
@@ -222,33 +224,33 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
 
     // Validate thresholds for plugin mode
     if args.plugin {
-        if let Some(w) = args.warning {
-            if w < 0.0 {
-                term.write_line(&style("--warning must be non-negative").red().to_string())
-                    .ok();
-                let _ = io::stdout().flush();
-                process::exit(2);
-            }
-        }
-        if let Some(c) = args.critical {
-            if c < 0.0 {
-                term.write_line(&style("--critical must be non-negative").red().to_string())
-                    .ok();
-                let _ = io::stdout().flush();
-                process::exit(2);
-            }
-        }
-        if let (Some(w), Some(c)) = (args.warning, args.critical) {
-            if w >= c {
-                term.write_line(
-                    &style("--warning must be less than --critical")
-                        .red()
-                        .to_string(),
-                )
+        if let Some(w) = args.warning
+            && w < 0.0
+        {
+            term.write_line(&style("--warning must be non-negative").red().to_string())
                 .ok();
-                let _ = io::stdout().flush();
-                process::exit(2);
-            }
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+        if let Some(c) = args.critical
+            && c < 0.0
+        {
+            term.write_line(&style("--critical must be non-negative").red().to_string())
+                .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+        if let (Some(w), Some(c)) = (args.warning, args.critical)
+            && w >= c
+        {
+            term.write_line(
+                &style("--warning must be less than --critical")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
         }
     }
 
@@ -636,17 +638,16 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
 
         let abs_offset = offset.abs();
         let mut exit_code = 0i32;
-        if let Some(c) = args.critical {
-            if abs_offset >= c {
-                exit_code = 2;
-            }
+        if let Some(c) = args.critical
+            && abs_offset >= c
+        {
+            exit_code = 2;
         }
-        if exit_code == 0 {
-            if let Some(w) = args.warning {
-                if abs_offset >= w {
-                    exit_code = 1;
-                }
-            }
+        if exit_code == 0
+            && let Some(w) = args.warning
+            && abs_offset >= w
+        {
+            exit_code = 1;
         }
 
         let state = match exit_code {
@@ -1093,6 +1094,10 @@ fn output(term: &Term, results: &[ProbeResult], fmt: OutputFormat, pretty: bool,
                 term.write_line(&s).ok();
             }
         }
+        OutputFormat::Csv => match fmt::csv::to_csv(results) {
+            Ok(s) => print!("{}", s),
+            Err(e) => eprintln!("error serializing: {}", e),
+        },
     }
 }
 
@@ -1119,9 +1124,7 @@ fn handle_error(term: &Term, err: RkikError, fmt: OutputFormat, pretty: bool) ->
 
     if err.is_dns() {
         2
-    } else if err.is_network_timeout() {
-        3
-    } else if err.is_nts() {
+    } else if err.is_network_timeout() || err.is_nts() {
         3
     } else {
         1
