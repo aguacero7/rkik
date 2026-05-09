@@ -6,7 +6,7 @@
 
 > Think `dig`, but for time sources. No daemon, no root, no config to touch.
 
-rkik queries NTP, NTS, and PTP servers and tells you what they say : offset, RTT, stratum, authentication status. One shot, stateless, done.
+rkik queries NTP, NTS servers and tells you what they say : offset, RTT, stratum, authentication status. One shot, stateless, done.
 
 ---
 
