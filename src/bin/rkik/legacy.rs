@@ -312,10 +312,14 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
 
             let mut all: HashMap<String, Vec<ProbeResult>> = HashMap::new();
             let mut n = 0u32;
+            let multi = args.count > 1 || args.infinite;
+            if multi && matches!(args.format, OutputFormat::Csv) {
+                println!("{}", fmt::csv::HEADER);
+            }
             loop {
                 match compare_many(list, args.ipv6, timeout, use_nts, nts_port).await {
                     Ok(results) => {
-                        if args.count > 1 || args.infinite {
+                        if multi {
                             match args.format {
                                 OutputFormat::Text => {
                                     if args.verbose {
@@ -337,6 +341,12 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
                                             Ok(s) => println!("{}", s),
                                             Err(e) => eprintln!("error serializing: {}", e),
                                         }
+                                    }
+                                }
+                                OutputFormat::Csv => {
+                                    match fmt::csv::rows(&results) {
+                                        Ok(s) => print!("{}", s),
+                                        Err(e) => eprintln!("error serializing: {}", e),
                                     }
                                 }
                                 _ => {
@@ -396,6 +406,7 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
                             Err(e) => eprintln!("error serializing: {}", e),
                         }
                     }
+                    OutputFormat::Csv => {}
                     _ => {
                         for (name, st) in &stats_list {
                             let line = fmt::text::render_stats(name, st);
@@ -449,13 +460,18 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
     #[cfg(not(feature = "nts"))]
     let (use_nts, nts_port) = (false, 4460u16);
 
+    let multi = args.count > 1 || args.infinite;
+    if multi && matches!(args.format, OutputFormat::Csv) && !args.plugin {
+        println!("{}", fmt::csv::HEADER);
+    }
+
     loop {
         match query_one(target, args.ipv6, timeout, use_nts, nts_port).await {
             Ok(res) => {
                 // In plugin mode we suppress the regular human-readable output and only
                 // collect results to produce the plugin line at the end.
                 if !args.plugin {
-                    if args.count > 1 || args.infinite {
+                    if multi {
                         let format = args.format.clone();
                         match format {
                             OutputFormat::Text => {
@@ -476,7 +492,12 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
                                 Ok(s) => println!("{}", s),
                                 Err(e) => eprintln!("error serializing: {}", e),
                             },
-
+                            OutputFormat::Csv => {
+                                match fmt::csv::rows(std::slice::from_ref(&res)) {
+                                    Ok(s) => print!("{}", s),
+                                    Err(e) => eprintln!("error serializing: {}", e),
+                                }
+                            }
                             _ => {
                                 output(
                                     term,
@@ -528,14 +549,14 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
 
     if all.len() > 1 && !args.plugin {
         let stats = compute_stats(&all);
-        let format = args.format.clone();
-        match format {
+        match args.format {
             OutputFormat::Json => {
                 match fmt::json::stats_to_json(&all[0].target.name, &stats, args.pretty) {
                     Ok(s) => println!("{}", s),
                     Err(e) => eprintln!("error serializing: {}", e),
                 }
             }
+            OutputFormat::Csv => {}
             _ => {
                 let line = fmt::text::render_stats(&all[0].target.name, &stats);
                 term.write_line(&line).ok();

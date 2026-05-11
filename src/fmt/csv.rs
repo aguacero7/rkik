@@ -10,11 +10,10 @@ fn escape_csv(s: &str) -> String {
     }
 }
 
-pub fn to_csv(results: &[ProbeResult]) -> Result<String, RkikError> {
-    let mut out = String::new();
-    writeln!(&mut out, "target,stratum,offset_ms,delay_ms,timestamp")
-        .map_err(|e| RkikError::Other(e.to_string()))?;
+pub const HEADER: &str = "target,stratum,offset_ms,delay_ms,timestamp";
 
+pub fn rows(results: &[ProbeResult]) -> Result<String, RkikError> {
+    let mut out = String::new();
     for r in results {
         let target = escape_csv(&r.target.name);
         writeln!(
@@ -24,7 +23,12 @@ pub fn to_csv(results: &[ProbeResult]) -> Result<String, RkikError> {
         )
         .map_err(|e| RkikError::Other(e.to_string()))?;
     }
+    Ok(out)
+}
 
+pub fn to_csv(results: &[ProbeResult]) -> Result<String, RkikError> {
+    let mut out = format!("{}\n", HEADER);
+    out.push_str(&rows(results)?);
     Ok(out)
 }
 

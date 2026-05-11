@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- **CSV output format** (`--format csv` / `-f csv`) — RFC 4180 compliant, fields: `target`, `stratum`, `offset_ms`, `delay_ms`, `timestamp`. Works in single-probe, compare, count, infinite, and legacy modes. Special characters (commas, quotes, newlines) are escaped per spec.
+
+### Fixed
+
+- **CSV `--count` / `--infinite`**: header was printed on every iteration instead of once; the stats summary line was leaking as plain text into the CSV stream. Header is now emitted once before the loop; stats are suppressed in CSV mode.
+
 ### Removed
 
 - **PTP (IEEE 1588) support dropped** — removed the `ptp` feature flag, `PtpCommand` CLI subcommand, all associated adapters, domain types, services, formatters, stats helpers, and tests. The `statime` / `statime-linux` dependencies are gone. PTP is out of scope for the project's vision.
