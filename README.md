@@ -6,7 +6,7 @@
 
 > Think `dig`, but for time sources. No daemon, no root, no config to touch.
 
-rkik queries NTP, NTS servers and tells you what they say : offset, RTT, stratum, authentication status. One shot, stateless, done.
+rkik queries NTP and NTS servers and tells you what they say: offset, RTT, stratum, authentication status. One shot, stateless, done.
 
 ---
 
@@ -14,7 +14,7 @@ rkik queries NTP, NTS servers and tells you what they say : offset, RTT, stratum
 
 - **Passive by design.** It never touches your system clock unless you explicitly ask (`--sync`). Run it anywhere, as anyone.
 - **NTS that actually works.** rkik-nts 1.0.0 is the first rust implementation of RFC 8915 verified against real public servers (`time.cloudflare.com`, `nts.ntp.se`). Older tools either skip authentication or implement it wrong.
-- **Three protocols, one tool.** NTP over IPv4/IPv6, NTS with full TLS diagnostics, and PTP/IEEE 1588 — all with compare mode, JSON output, and Nagios/Centreon plugin support.
+- **Two protocols, one tool.** NTP over IPv4/IPv6 and NTS with full TLS diagnostics — compare mode, JSON output, and Nagios/Centreon plugin support included.
 - The only **NTS-aware monitoring** plugin for Nagios, Centreon and Zabbix
 ---
 
@@ -143,20 +143,6 @@ When something goes wrong, rkik tells you what kind of failure it is:
 Security-critical failures (`aead_failure`, `missing_authenticator`, `unauthenticated_response`, `invalid_unique_id`, `invalid_origin_timestamp`) exit with code 2 in plugin mode.
 
 See [docs/user-guide.md#nts](docs/user-guide.md#nts--network-time-security) for the full error reference.
-
----
-
-## PTP — Precision Time Protocol
-
-PTP mode (IEEE 1588-2019) is Linux-only and requires the `ptp` feature (on by default).
-
-```bash
-rkik --ptp 192.0.2.10
-rkik --ptp --ptp-domain 24 --ptp-event-port 3319 --ptp-general-port 3320 127.0.0.1
-rkik --ptp --compare 192.168.1.100 192.168.1.101 --format json
-```
-
-See [docs/user-guide.md#ptp](docs/user-guide.md#ptp--precision-time-protocol) for flags and output format.
 
 ---
 
