@@ -319,7 +319,17 @@ pub async fn query_nts(
     // Convert SystemTime to DateTime<Utc>
     let network_time: DateTime<Utc> = time_snapshot.network_time.into();
 
-    let offset_ms = time_snapshot.offset_signed() as f64;
+    let sys_ns = time_snapshot
+        .system_time
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as i128;
+    let net_ns = time_snapshot
+        .network_time
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as i128;
+    let offset_ms = (sys_ns - net_ns) as f64 / 1_000_000.0;
 
     // Convert round_trip_delay from Duration to milliseconds
     let rtt_ms = time_snapshot.round_trip_delay.as_secs_f64() * 1000.0;
