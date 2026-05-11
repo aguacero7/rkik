@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- **NTS clock offset always zero**: `rkik-nts`'s `offset_signed()` uses `as_millis()` which truncates sub-millisecond offsets to zero. Replaced with a direct nanosecond computation on `system_time`/`network_time`, matching the precision of the NTP path.
 - Strengthened `--plugin` mode validation by rejecting incompatible flags and preserving the fixed Nagios/Centreon-compatible text output.
 - Refactored repeated plugin error handling into a shared helper function.
 
