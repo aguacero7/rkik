@@ -135,8 +135,22 @@ rkik --version -v       # verbose: features, platform, Rust compiler
 | `-j` / `--json` | `json` | Full JSON, stable schema |
 | `-S` / `--short` | `simple` | Minimal text (name, offset) |
 | `--format json-short` | `json-short` | Compact JSON one-liner |
+| `--format csv` | `csv` | RFC 4180 compliant CSV output |
 | `-p` / `--pretty` | — | Pretty-print JSON (use with `-j`) |
 | `-v` / `--verbose` | — | Adds stratum, ref ID, diagnostics |
+
+### CSV output
+
+```bash
+# Basic usage
+rkik --format csv time.google.com
+
+# Compare mode
+rkik --format csv time.google.com pool.ntp.org
+
+# Piping to file
+rkik --format csv time.google.com > results.csv
+```
 
 ### Error output
 
