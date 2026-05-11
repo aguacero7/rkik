@@ -525,10 +525,7 @@ fn detect_mode() -> Mode {
 }
 
 fn is_new_keyword(s: &str) -> bool {
-    matches!(
-        s,
-        "ntp" | "compare" | "sync" | "diag" | "config" | "preset"
-    )
+    matches!(s, "ntp" | "compare" | "sync" | "diag" | "config" | "preset")
 }
 
 fn load_config() -> ConfigStore {
