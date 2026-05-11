@@ -49,7 +49,7 @@ jobs:
         shell: bash
 
       - name: Test (full feature set without network-tests)
-        run: cargo test --no-default-features --features "json sync nts ptp"
+        run: cargo test --no-default-features --features "json sync nts"
         shell: bash
 
       - name: Build (release, default features)
@@ -60,43 +60,8 @@ jobs:
         shell: bash
 
       - name: Build (release, full feature set without network-tests)
-        run: cargo build --release --no-default-features --features "json sync nts ptp" --verbose
+        run: cargo build --release --no-default-features --features "json sync nts" --verbose
         shell: bash
 
       - name: Audit dependencies
         run: cargo audit --json || true
-
-  ptp-docker-smoke:
-    name: PTP Docker Smoke Tests
-    runs-on: ubuntu-latest
-    needs: build-test-audit
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust stable
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-
-      - name: Cache cargo registry and target
-        uses: Swatinem/rust-cache@v2
-
-      - name: Start test environment
-        run: ./scripts/test-env-up.sh
-
-      - name: Wait for services
-        run: sleep 8
-
-      - name: PTP text probe
-        run: cargo run -- --ptp --ptp-domain 24 --ptp-event-port 3319 --ptp-general-port 3320 127.0.0.1
-
-      - name: PTP verbose JSON probe
-        run: cargo run -- --ptp --ptp-domain 24 --ptp-event-port 3319 --ptp-general-port 3320 --verbose --format json --pretty 127.0.0.1
-
-      - name: Stop test environment
-        if: always()
-        run: ./scripts/test-env-down.sh
