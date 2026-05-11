@@ -30,9 +30,6 @@ enum Command {
     Ntp(NtpCommand),
     /// Compare multiple servers concurrently
     Compare(CompareCommand),
-    /// Run PTP queries (Linux only)
-    #[cfg(all(feature = "ptp", target_os = "linux"))]
-    Ptp(PtpCommand),
     /// One-shot synchronization workflow
     #[cfg(feature = "sync")]
     Sync(SyncCommand),
@@ -102,11 +99,11 @@ struct PluginOptions {
     #[arg(long)]
     plugin: bool,
 
-    /// Warning threshold (ms for NTP, ns for PTP)
+    /// Warning threshold (ms)
     #[arg(long, requires = "plugin", value_name = "WARN")]
     warning: Option<f64>,
 
-    /// Critical threshold (ms for NTP, ns for PTP)
+    /// Critical threshold (ms)
     #[arg(long, requires = "plugin", value_name = "CRIT")]
     critical: Option<f64>,
 }
@@ -186,39 +183,6 @@ struct DiagCommand {
     /// Target to diagnose
     #[arg(value_name = "TARGET")]
     target: String,
-}
-
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-#[derive(ClapArgs, Debug, Clone, Default)]
-struct PtpCommand {
-    #[command(flatten)]
-    common: ProbeOptions,
-
-    #[command(flatten)]
-    output: OutputOptions,
-
-    #[command(flatten)]
-    plugin: PluginOptions,
-
-    /// Target grandmaster/bridge
-    #[arg(value_name = "TARGET")]
-    target: String,
-
-    /// PTP domain
-    #[arg(long, default_value_t = 0)]
-    domain: u8,
-
-    /// Event port (UDP)
-    #[arg(long, default_value_t = 319)]
-    event_port: u16,
-
-    /// General port (UDP)
-    #[arg(long, default_value_t = 320)]
-    general_port: u16,
-
-    /// Request hardware timestamping
-    #[arg(long)]
-    hw_timestamp: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -321,11 +285,6 @@ async fn dispatch_command(cmd: Command, config: &mut ConfigStore) -> Result<(), 
             let legacy_args = build_compare_args(opts, config.defaults())?;
             legacy::run(legacy_args, false).await;
         }
-        #[cfg(all(feature = "ptp", target_os = "linux"))]
-        Command::Ptp(opts) => {
-            let legacy_args = build_ptp_args(opts, config.defaults());
-            legacy::run(legacy_args, false).await;
-        }
         #[cfg(feature = "sync")]
         Command::Sync(opts) => {
             let legacy_args = build_sync_args(opts, config.defaults())?;
@@ -399,21 +358,6 @@ fn build_diag_args(cmd: DiagCommand, defaults: &Defaults) -> LegacyArgs {
     args.infinite = false;
     args.plugin = false;
     args.no_color = false;
-    args
-}
-
-#[cfg(all(feature = "ptp", target_os = "linux"))]
-fn build_ptp_args(cmd: PtpCommand, defaults: &Defaults) -> LegacyArgs {
-    let mut args = LegacyArgs::default();
-    args.target = Some(cmd.target);
-    args.ptp = true;
-    args.ptp_domain = cmd.domain;
-    args.ptp_event_port = cmd.event_port;
-    args.ptp_general_port = cmd.general_port;
-    args.ptp_hw_timestamp = cmd.hw_timestamp;
-    apply_probe_options(&mut args, &cmd.common, defaults);
-    apply_output_options(&mut args, &cmd.output, defaults).ok();
-    apply_plugin_options(&mut args, &cmd.plugin);
     args
 }
 
@@ -581,10 +525,7 @@ fn detect_mode() -> Mode {
 }
 
 fn is_new_keyword(s: &str) -> bool {
-    matches!(
-        s,
-        "ntp" | "compare" | "ptp" | "sync" | "diag" | "config" | "preset"
-    )
+    matches!(s, "ntp" | "compare" | "sync" | "diag" | "config" | "preset")
 }
 
 fn load_config() -> ConfigStore {

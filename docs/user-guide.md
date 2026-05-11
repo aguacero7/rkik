@@ -6,9 +6,7 @@
 - [Basic Usage](#basic-usage)
 - [Output Formats](#output-formats)
 - [NTS — Network Time Security](#nts--network-time-security)
-- [PTP — Precision Time Protocol](#ptp--precision-time-protocol)
 - [Plugin Mode (Nagios / Centreon / Zabbix)](#plugin-mode-nagios--centreon--zabbix)
-- [Local Test Environment](#local-test-environment)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -289,38 +287,6 @@ In JSON verbose mode:
 
 ---
 
-## PTP — Precision Time Protocol
-
-PTP mode (IEEE 1588-2019) is available on **Linux only** and requires the `ptp` feature (enabled by default).
-
-```bash
-# Basic probe (domain 0, ports 319/320)
-rkik --ptp 192.0.2.10
-
-# Custom domain and ports (lab setup)
-rkik --ptp --ptp-domain 24 --ptp-event-port 3319 --ptp-general-port 3320 127.0.0.1
-
-# Verbose JSON output
-rkik --ptp --verbose --format json --pretty ptp.lan
-
-# Compare two PTP masters
-rkik --ptp --compare 192.168.1.100 192.168.1.101
-```
-
-### PTP flags
-
-| Flag | Description |
-|------|-------------|
-| `--ptp` | Enable PTP mode (mutually exclusive with `--nts`, `--sync`) |
-| `--ptp-domain <N>` | Domain number (default `0`) |
-| `--ptp-event-port <PORT>` | Event port (default `319`) |
-| `--ptp-general-port <PORT>` | General port (default `320`) |
-| `--ptp-hw-timestamp` | Request hardware timestamping |
-
-PTP supports all existing output modes: compare, plugin, JSON, short, stats.
-
----
-
 ## Plugin Mode (Nagios / Centreon / Zabbix)
 
 Since v1.2, rkik emits Nagios-compatible plugin output with perfdata.
@@ -358,52 +324,6 @@ For NTS failures, security-critical errors (`aead_failure`, `missing_authenticat
 ```
 RKIK UNKNOWN - request failed | offset_ms=;50;200;0; rtt_ms=;;;0;
 ```
-
----
-
-## Local Test Environment
-
-A Docker Compose sandbox ships with the repo — three NTP daemons and a LinuxPTP grandmaster, no production infrastructure needed.
-
-### Requirements
-
-- Docker Engine 20.10+ (or Podman with Docker compatibility)
-- `docker compose` plugin
-- Internet access for containers to reach upstream clocks
-
-### Services
-
-| Service | Host port | Description |
-|---------|-----------|-------------|
-| `ntp_primary` | `3123/udp` | NTP following `time.google.com` |
-| `ntp_secondary` | `4123/udp` | NTP following `time.cloudflare.com` |
-| `ntp_pool` | `5123/udp` | General pool node |
-| `ptp_master` | `3319/udp`, `3320/udp` | LinuxPTP grandmaster (domain 24) |
-
-### Usage
-
-```bash
-# Start (builds linuxptp image on first run)
-./scripts/test-env-up.sh
-
-# NTP probes
-rkik 127.0.0.1:3123
-rkik --compare 127.0.0.1:3123 127.0.0.1:4123 127.0.0.1:5123 -c 5 -i 0.5
-
-# PTP probe
-rkik --ptp --ptp-domain 24 --ptp-event-port 3319 --ptp-general-port 3320 127.0.0.1
-
-# Tear down
-./scripts/test-env-down.sh
-```
-
-Override the compose binary: `COMPOSE_BIN="podman compose" ./scripts/test-env-up.sh`
-
-### Troubleshooting
-
-- **Port conflict**: edit host-side bindings in `dev/test-env/docker-compose.yml`.
-- **macOS / Windows**: LinuxPTP requires UDP multicast — enable experimental multicast in Docker Desktop or use `network_mode: host`.
-- **Corporate proxy**: configure Docker to route container traffic through the proxy.
 
 ---
 

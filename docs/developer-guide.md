@@ -33,7 +33,6 @@ Compare mode runs all queries concurrently via `futures::join_all`.
 |---------|---------|-------------|
 | `json` | yes | `serde::Serialize` on domain types; JSON formatters |
 | `nts` | yes | NTS support via `rkik-nts` |
-| `ptp` | yes (Linux) | PTP/IEEE 1588 mode via `statime` |
 | `sync` | yes | System clock sync (Unix, root) |
 | `network-tests` | no | Integration tests hitting real servers |
 
@@ -52,26 +51,20 @@ src/
     resolver.rs        # DNS resolution
     ntp_client.rs      # rsntp wrapper → ProbeResult
     nts_client.rs      # rkik-nts wrapper (feature nts)
-    ptp_client.rs      # statime wrapper (feature ptp, linux)
   domain/
     ntp.rs             # Target, ProbeResult
-    ptp.rs             # PtpProbeResult, clock metadata (feature ptp)
   services/
     query.rs           # query_one()
     compare.rs         # compare_many()
-    ptp_query.rs       # PTP probe entry point (feature ptp)
   fmt/
     text.rs            # terminal rendering
     json.rs            # JSON serialization
-    ptp_text.rs        # PTP text renderer (feature ptp)
-    ptp_json.rs        # PTP JSON renderer (feature ptp)
-  stats.rs             # Stats, PtpStats, compute_stats()
+  stats.rs             # Stats, compute_stats()
   sync/                # clock sync (feature sync)
   error.rs             # RkikError
 tests/
   integration.rs       # basic lib integration tests
   nts_test.rs          # NTS rendering and validation tests
-  ptp_tests.rs         # PTP renderer unit tests
   cli_test.rs          # CLI smoke tests (assert_cmd)
 ```
 
@@ -167,7 +160,7 @@ cargo test
 # Run with real NTP servers
 cargo test --features network-tests
 
-# Minimal build (no NTS, no PTP, no sync)
+# Minimal build (no NTS, no sync)
 cargo build --no-default-features --features json
 
 # Lint
@@ -175,7 +168,7 @@ cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-The Docker lab (`./scripts/test-env-up.sh`) spins up three NTP daemons and a LinuxPTP grandmaster for local end-to-end testing. See [user-guide.md#local-test-environment](user-guide.md#local-test-environment).
+Run `cargo test` for unit and integration tests. Network integration tests (hitting real servers) require `--features network-tests`.
 
 ---
 
