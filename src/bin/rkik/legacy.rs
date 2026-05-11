@@ -343,12 +343,10 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
                                         }
                                     }
                                 }
-                                OutputFormat::Csv => {
-                                    match fmt::csv::rows(&results) {
-                                        Ok(s) => print!("{}", s),
-                                        Err(e) => eprintln!("error serializing: {}", e),
-                                    }
-                                }
+                                OutputFormat::Csv => match fmt::csv::rows(&results) {
+                                    Ok(s) => print!("{}", s),
+                                    Err(e) => eprintln!("error serializing: {}", e),
+                                },
                                 _ => {
                                     output(
                                         &term,
@@ -492,12 +490,10 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
                                 Ok(s) => println!("{}", s),
                                 Err(e) => eprintln!("error serializing: {}", e),
                             },
-                            OutputFormat::Csv => {
-                                match fmt::csv::rows(std::slice::from_ref(&res)) {
-                                    Ok(s) => print!("{}", s),
-                                    Err(e) => eprintln!("error serializing: {}", e),
-                                }
-                            }
+                            OutputFormat::Csv => match fmt::csv::rows(std::slice::from_ref(&res)) {
+                                Ok(s) => print!("{}", s),
+                                Err(e) => eprintln!("error serializing: {}", e),
+                            },
                             _ => {
                                 output(
                                     term,
