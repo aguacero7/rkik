@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-01-24
+
 ### Added
 
 - **CSV output format** (`--format csv` / `-f csv`) — RFC 4180 compliant, fields: `target`, `stratum`, `offset_ms`, `delay_ms`, `timestamp`. Works in single-probe, compare, count, infinite, and legacy modes. Special characters (commas, quotes, newlines) are escaped per spec.
