@@ -15,6 +15,12 @@
 - **PTP (IEEE 1588) support dropped** — removed the `ptp` feature flag, `PtpCommand` CLI subcommand, all associated adapters, domain types, services, formatters, stats helpers, and tests. The `statime` / `statime-linux` dependencies are gone. PTP is out of scope for the project's vision.
 - **Docker test environment removed** — deleted `dev/test-env/`, `scripts/test-env-up.sh`, and `scripts/test-env-down.sh`.
 
+### Changed
+
+- **Dependency update**: `rkik-nts` upgraded from v1.0.0 to v1.1.1
+  - New `KissOfDeath` error variant now mapped to `NtsErrorKind::Network`
+- Transitive dependency bumps: `tokio` 1.52.1→1.52.3, `wasm-bindgen` 0.2.120→0.2.121, `hashbrown`, `js-sys`, `cc`, `assert_cmd`
+
 ### Fixed
 
 - **NTS clock offset always zero**: `rkik-nts`'s `offset_signed()` uses `as_millis()` which truncates sub-millisecond offsets to zero. Replaced with a direct nanosecond computation on `system_time`/`network_time`, matching the precision of the NTP path.

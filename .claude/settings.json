@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./target/release/rkik time.cloudflare.com)",
+      "Bash(./target/release/rkik --nts time.cloudflare.com)",
+      "Bash(./target/release/rkik time.google.com -f csv)",
+      "Bash(./target/release/rkik time.google.com -f csv --count 3)",
+      "Bash(./target/release/rkik --compare time.google.com time.cloudflare.com pool.ntp.org -f csv)",
+      "Bash(./target/release/rkik --compare time.google.com time.cloudflare.com -f csv --count 2)",
+      "Bash(find ~/.cargo/registry/src -path \"*/rkik-nts-1.1.1/src/nts_ntp.rs\" 2>/dev/null | head -1 | xargs grep -n \"send_time\" 2>/dev/null | head -40)",
+      "Read(//home/pnv_lga/.cargo/registry/src/**)",
+      "Bash(xargs sed -n '350,380p')",
+      "Bash(xargs sed -n '310,365p')",
+      "Bash(xargs sed -n '505,560p')",
+      "Bash(xargs sed -n '64,120p')",
+      "Bash(xargs sed -n '47,62p')",
+      "Bash(xargs cat)",
+      "Bash(xargs sed -n '340,360p')",
+      "Bash(xargs sed -n '575,610p')",
+      "Bash(timedatectl)"
+    ]
+  }
+}
