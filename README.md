@@ -13,7 +13,7 @@ rkik queries NTP and NTS servers and tells you what they say: offset, RTT, strat
 ## Why rkik?
 
 - **Passive by design.** It never touches your system clock unless you explicitly ask (`--sync`). Run it anywhere, as anyone.
-- **NTS that actually works.** rkik-nts 1.0.0 is the first Rust implementation of RFC 8915 verified against real public servers (`time.cloudflare.com`, `nts.ntp.se`). Older tools either skip authentication or implement it wrong.
+- **NTS that actually works.** rkik-nts 1.0.0 is the first Rust client library of RFC 8915 verified against real public servers (`time.cloudflare.com`, `nts.ntp.se`).
 - **Two protocols, one tool.** NTP over IPv4/IPv6 and NTS with full TLS diagnostics — compare mode, JSON output, and Nagios/Centreon plugin support included.
 - The only **NTS-aware monitoring** plugin for Nagios, Centreon and Zabbix
 ---
