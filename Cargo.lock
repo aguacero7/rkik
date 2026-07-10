@@ -1032,7 +1032,7 @@ dependencies = [
 
 [[package]]
 name = "rkik"
-version = "2.2.1"
+version = "2.2.2"
 dependencies = [
  "assert_cmd",
  "chrono",
@@ -1054,9 +1054,9 @@ dependencies = [
 
 [[package]]
 name = "rkik-nts"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04e32df1ebfa6d1d65315b6c89d3f02ea8a1045adc8b47e316aa49b4327b8426"
+checksum = "3c25d3a2adde111db699236ba46c67f08738e4e3a53411a00cfff3524f0b2f87"
 dependencies = [
  "aes-siv",
  "chrono",
