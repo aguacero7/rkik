@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [2.2.2] - 2026-07-10
+
+### Changed
+
+- **Dependency update**: `rkik-nts` upgraded from v1.1.1 to v1.2.0.
+
 ## [2.2.1] - 2026-05-13
 
 ### Added
