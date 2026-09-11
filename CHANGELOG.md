@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- NTS queries now report the real server stratum and Reference ID. They were
+  hard-coded to stratum `0` and to the NTP server address, because rkik-nts
+  did not expose them; rkik-nts 1.3.0 does (#178).
+
+### Changed
+
+- **Dependency update**: `rkik-nts` upgraded from v1.2.0 to v1.3.0.
+
 ## [2.2.2] - 2026-07-10
 
 ### Changed
