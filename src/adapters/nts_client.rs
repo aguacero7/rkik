@@ -157,6 +157,10 @@ pub struct NtsTimeResult {
     pub authenticated: bool,
     /// Server hostname
     pub server: String,
+    /// Stratum reported by the NTP server
+    pub stratum: u8,
+    /// Reference ID reported by the NTP server, formatted per RFC 5905 §7.3
+    pub ref_id: String,
     /// NTS-KE diagnostic data
     pub nts_ke_data: Option<NtsKeData>,
     /// Detailed NTS validation outcome
@@ -343,6 +347,8 @@ pub async fn query_nts(
         rtt_ms,
         authenticated: true,
         server: time_snapshot.server.clone(),
+        stratum: time_snapshot.stratum,
+        ref_id: time_snapshot.reference_id_string(),
         nts_ke_data,
         nts_validation: NtsValidationOutcome::success(),
     })

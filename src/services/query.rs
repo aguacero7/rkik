@@ -163,8 +163,8 @@ pub async fn query_one(
             },
             offset_ms: nts_result.offset_ms,
             rtt_ms: nts_result.rtt_ms,
-            stratum: 0, // NTS library doesn't expose stratum
-            ref_id: nts_result.server.clone(),
+            stratum: nts_result.stratum,
+            ref_id: nts_result.ref_id,
             utc: nts_result.network_time,
             local,
             timestamp,
