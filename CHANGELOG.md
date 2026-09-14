@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-09.13
+
 ### Fixed
 
 - NTS queries now report the real server stratum and Reference ID. They were
