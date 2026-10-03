@@ -569,7 +569,11 @@ fn apply_config_value(
                 .as_deref()
                 .map(|v| {
                     v.parse::<f64>()
-                        .map_err(|_| format!("Invalid timeout: {v}"))
+                        .ok()
+                        .filter(|t| {
+                            std::time::Duration::try_from_secs_f64(*t).is_ok_and(|d| !d.is_zero())
+                        })
+                        .ok_or_else(|| format!("Invalid timeout: {v}"))
                 })
                 .transpose()?;
             config.update_timeout(parsed);

@@ -85,6 +85,34 @@ fn test_preset_add_and_list() {
         .stdout(contains("nightly"));
 }
 
+#[test]
+fn test_invalid_timeout_and_interval_are_rejected() {
+    for args in [
+        ["--timeout=-1", "127.0.0.1"].as_slice(),
+        ["--timeout=0", "127.0.0.1"].as_slice(),
+        ["--timeout=NaN", "127.0.0.1"].as_slice(),
+        ["ntp", "--timeout=-1", "127.0.0.1"].as_slice(),
+        ["-c", "2", "--interval=-1", "127.0.0.1"].as_slice(),
+    ] {
+        let mut cmd = Command::cargo_bin("rkik").unwrap();
+        cmd.args(args)
+            .assert()
+            .code(2)
+            .stdout(contains("must be a"));
+    }
+}
+
+#[test]
+fn test_config_set_rejects_invalid_timeout() {
+    let dir = config_test_dir("config-timeout");
+    let mut cmd = Command::cargo_bin("rkik").unwrap();
+    cmd.env("RKIK_CONFIG_DIR", dir.to_string_lossy().as_ref())
+        .args(["config", "set", "timeout", "--", "-1"])
+        .assert()
+        .failure()
+        .stderr(contains("Invalid timeout"));
+}
+
 fn config_test_dir(name: &str) -> PathBuf {
     let path = std::env::temp_dir().join(format!("rkik-test-{name}"));
     let _ = fs::remove_dir_all(&path);
