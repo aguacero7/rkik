@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use console::{Term, set_colors_enabled, style};
 #[cfg(feature = "sync")]
-use rkik::sync::{SyncError, get_sys_permissions, sync_from_probe};
+use rkik::sync::{SyncError, sync_from_probe};
 use std::io::{self, IsTerminal, Write};
 use std::process;
 use std::time::Duration;
@@ -180,7 +180,32 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
     }
 
     let term = Term::stdout();
-    let timeout = Duration::from_secs_f64(args.timeout);
+    let timeout = match Duration::try_from_secs_f64(args.timeout) {
+        Ok(t) if !t.is_zero() => t,
+        _ => {
+            term.write_line(
+                &style("--timeout must be a positive number of seconds")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+    };
+    let interval = match Duration::try_from_secs_f64(args.interval) {
+        Ok(i) => i,
+        Err(_) => {
+            term.write_line(
+                &style("--interval must be a non-negative number of seconds")
+                    .red()
+                    .to_string(),
+            )
+            .ok();
+            let _ = io::stdout().flush();
+            process::exit(2);
+        }
+    };
 
     // Validate thresholds for plugin mode
     if args.plugin {
@@ -381,13 +406,13 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
                     break;
                 }
                 if args.infinite {
-                    let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
+                    let sleep = tokio::time::sleep(interval);
                     tokio::select! {
                         _ = sleep => {},
                         _ = signal::ctrl_c() => { break; }
                     }
                 } else {
-                    tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
+                    tokio::time::sleep(interval).await;
                 }
             }
 
@@ -426,11 +451,11 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
             0
         }
         (_, Some(server), _) => {
-            query_loop(server, &args, &term, timeout).await;
+            query_loop(server, &args, &term, timeout, interval).await;
             0
         }
         (_, None, Some(pos)) => {
-            query_loop(pos, &args, &term, timeout).await;
+            query_loop(pos, &args, &term, timeout, interval).await;
             0
         }
         _ => {
@@ -449,7 +474,13 @@ pub async fn run(mut args: LegacyArgs, _warn_legacy: bool) {
     process::exit(exit_code);
 }
 
-async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Duration) {
+async fn query_loop(
+    target: &str,
+    args: &LegacyArgs,
+    term: &Term,
+    timeout: Duration,
+    interval: Duration,
+) {
     let mut all = Vec::new();
     let mut n = 0u32;
 
@@ -533,13 +564,13 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
             break;
         }
         if args.infinite {
-            let sleep = tokio::time::sleep(Duration::from_secs_f64(args.interval));
+            let sleep = tokio::time::sleep(interval);
             tokio::select! {
                 _ = sleep => {},
                 _ = signal::ctrl_c() => { break; }
             }
         } else {
-            tokio::time::sleep(Duration::from_secs_f64(args.interval)).await;
+            tokio::time::sleep(interval).await;
         }
     }
 
@@ -609,18 +640,12 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
 
     #[cfg(feature = "sync")]
     if args.sync {
-        let mut no_sync = false;
-        if !get_sys_permissions() || args.dry_run {
-            no_sync = true;
-        }
         let probe = average_probe(&all);
 
-        match sync_from_probe(&probe, no_sync) {
+        // Let the kernel decide: CAP_SYS_TIME is enough, euid 0 is not required.
+        match sync_from_probe(&probe, args.dry_run) {
             Ok(()) => {
-                if !get_sys_permissions() {
-                    let _ = term
-                        .write_line(&style("Error: need root or CAP_SYS_TIME").red().to_string());
-                } else if args.dry_run {
+                if args.dry_run {
                     let _ = term.write_line(&style("Sync skipped (dry-run)").yellow().to_string());
                 } else if args.count <= 1 {
                     let _ = term.write_line(&style("Sync applied").green().to_string());
@@ -636,8 +661,12 @@ async fn query_loop(target: &str, args: &LegacyArgs, term: &Term, timeout: Durat
                 }
             }
             Err(SyncError::Permission(e)) => {
-                term.write_line(&style(format!("Error: {}", e)).red().to_string())
-                    .ok();
+                term.write_line(
+                    &style(format!("Error: need root or CAP_SYS_TIME ({})", e))
+                        .red()
+                        .to_string(),
+                )
+                .ok();
                 let _ = io::stdout().flush();
                 process::exit(12);
             }

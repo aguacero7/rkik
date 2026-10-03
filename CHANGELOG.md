@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [2.2.4] - 2026-10-03
+
+### Fixed
+
+- **`sync` without privileges exited with code 0** after printing "need root or CAP_SYS_TIME". It now exits
+  with code 12. The privilege check also no longer requires euid 0: the clock step is attempted and the
+  kernel decides, so a process holding only `CAP_SYS_TIME` can sync.
+- **Panic on `--timeout=-1`** (and on any negative, NaN or out-of-range `--timeout` / `--interval`, including
+  a `timeout` read from the config file). These are now rejected with a clear message and exit code 2;
+  `rkik config set timeout` refuses such values.
+- **IPv6-only hosts failed without `-6`** with "Address family not supported by protocol": the local socket
+  was bound according to the flag instead of the resolved address. It now follows the address family of
+  the resolved IP.
+- **NTS: wrong IP and port displayed.** The address shown came from a separate DNS lookup made after the
+  query, and the port from the target string. rkik now shows the address the authenticated query was
+  actually sent to (as negotiated by NTS-KE).
+- **NTS: `-6` was ignored.** It now restricts both the NTS-KE connection and the NTP query to IPv6
+  (rkik-nts 1.4.0 `AddressFamily`); a host without an IPv6 address fails instead of silently using IPv4.
+- **NTS: unbounded cookie pool and wrong server address on dual-stack hosts**, fixed in rkik-nts 1.4.0.
+
+### Security
+
+- `rustls` updated to 0.23.45 (RUSTSEC-2026-0285).
+
+### Changed
+
+- **Dependency update**: `rkik-nts` upgraded from v1.3.0 to v1.4.0.
+
 ## [2.2.3] - 2026-09.13
 
 ### Fixed

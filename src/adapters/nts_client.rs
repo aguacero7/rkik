@@ -1,7 +1,7 @@
 //! NTS (Network Time Security) client adapter using rkik-nts library.
 
 #[cfg(feature = "nts")]
-use rkik_nts::{NtsClient, NtsClientConfig, error::Error as NtsLibError};
+use rkik_nts::{AddressFamily, NtsClient, NtsClientConfig, error::Error as NtsLibError};
 
 use chrono::{DateTime, Utc};
 use std::time::Duration;
@@ -263,8 +263,23 @@ pub async fn query_nts(
     nts_ke_port: Option<u16>,
     timeout: Duration,
 ) -> Result<NtsTimeResult, RkikError> {
+    query_nts_with_family(server, nts_ke_port, timeout, false).await
+}
+
+/// Same as [`query_nts`], optionally restricting NTS-KE and NTP traffic to IPv6.
+#[cfg(feature = "nts")]
+pub async fn query_nts_with_family(
+    server: &str,
+    nts_ke_port: Option<u16>,
+    timeout: Duration,
+    ipv6_only: bool,
+) -> Result<NtsTimeResult, RkikError> {
     // Configure NTS client
     let mut config = NtsClientConfig::new(server);
+
+    if ipv6_only {
+        config = config.with_address_family(AddressFamily::Ipv6);
+    }
 
     if let Some(port) = nts_ke_port {
         config = config.with_port(port);
@@ -360,6 +375,19 @@ pub async fn query_nts(
     _server: &str,
     _nts_ke_port: Option<u16>,
     _timeout: Duration,
+) -> Result<NtsTimeResult, RkikError> {
+    Err(RkikError::Other(
+        "NTS support not enabled. Compile with --features nts".to_string(),
+    ))
+}
+
+/// Stub function when NTS feature is disabled
+#[cfg(not(feature = "nts"))]
+pub async fn query_nts_with_family(
+    _server: &str,
+    _nts_ke_port: Option<u16>,
+    _timeout: Duration,
+    _ipv6_only: bool,
 ) -> Result<NtsTimeResult, RkikError> {
     Err(RkikError::Other(
         "NTS support not enabled. Compile with --features nts".to_string(),
