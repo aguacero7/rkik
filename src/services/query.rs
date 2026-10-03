@@ -1,5 +1,7 @@
 use chrono::{DateTime, Local, Utc};
 use std::net::IpAddr;
+#[cfg(feature = "nts")]
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -145,13 +147,20 @@ pub async fn query_one(
     #[cfg(feature = "nts")]
     if use_nts {
         let parsed = parse_target(target).map_err(|e| e.with_target(target))?;
-        let nts_result = nts_client::query_nts(parsed.host, Some(nts_port), timeout)
-            .await
-            .map_err(|e| e.with_target(target))?;
+        let nts_result =
+            nts_client::query_nts_with_family(parsed.host, Some(nts_port), timeout, ipv6)
+                .await
+                .map_err(|e| e.with_target(target))?;
 
-        // Resolve IP for display purposes
-        let ip: IpAddr =
-            resolver::resolve_ip(parsed.host, ipv6).map_err(|e| e.with_target(target))?;
+        // Report the address the authenticated query was actually sent to,
+        // which NTS-KE may have negotiated away from the KE host and port.
+        let (ip, port) = match nts_result.server.parse::<SocketAddr>() {
+            Ok(addr) => (addr.ip(), addr.port()),
+            Err(_) => (
+                resolver::resolve_ip(parsed.host, ipv6).map_err(|e| e.with_target(target))?,
+                123,
+            ),
+        };
         let local: DateTime<Local> = DateTime::from(nts_result.network_time);
         let timestamp = nts_result.network_time.timestamp();
 
@@ -159,7 +168,7 @@ pub async fn query_one(
             target: Target {
                 name: target.to_string(),
                 ip,
-                port: parsed.port.unwrap_or(123),
+                port,
             },
             offset_ms: nts_result.offset_ms,
             rtt_ms: nts_result.rtt_ms,
